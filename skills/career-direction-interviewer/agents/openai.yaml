@@ -1,0 +1,7 @@
+interface:
+  display_name: "职业方向深访"
+  short_description: "澄清职业方向、主叙事和核心关键词"
+  brand_color: "#0F766E"
+  default_prompt: "Use $career-direction-interviewer to help me clarify my career direction from my resume."
+policy:
+  allow_implicit_invocation: true

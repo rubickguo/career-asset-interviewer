@@ -1,0 +1,7 @@
+interface:
+  display_name: "个人网站构建"
+  short_description: "基于职业资产和审美参考制作个人网站"
+  brand_color: "#DB2777"
+  default_prompt: "Use $personal-site-builder to design a personal website from my career assets and style references."
+policy:
+  allow_implicit_invocation: true

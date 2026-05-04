@@ -1,8 +1,8 @@
-# Asset Schema
+# Career Asset Schema
 
-Use these structures when creating or updating the user's career asset library.
+Use this shared schema across all career skills. Each skill should update only the sections it owns and preserve confirmed user facts.
 
-## profile.md
+## career-assets/profile.md
 
 ```markdown
 # Profile
@@ -29,12 +29,12 @@ Use these structures when creating or updating the user's career asset library.
 ## Open Questions
 ```
 
-## directions.md
+## career-assets/directions.md
 
 ```markdown
 # Direction Ranking
 
-## 1. Direction Name
+## Direction Name
 
 - Type: high-certainty / growth / exploration / deprioritized
 - Why it fits:
@@ -44,7 +44,7 @@ Use these structures when creating or updating the user's career asset library.
 - Next experiment:
 ```
 
-## keywords.md
+## career-assets/keywords.md
 
 ```markdown
 # Positioning Keywords
@@ -53,14 +53,9 @@ Use these structures when creating or updating the user's career asset library.
 |---|---|---|---|---|---|
 ```
 
-Status values:
+Status values: `confirmed`, `likely`, `weak`, `待确认`.
 
-- confirmed
-- likely
-- weak
-- 待确认
-
-## projects.md
+## career-assets/projects.md
 
 ```markdown
 ## Project Name
@@ -84,7 +79,7 @@ Status values:
 - Questions to confirm:
 ```
 
-## skills-evidence.md
+## career-assets/skills-evidence.md
 
 ```markdown
 # Skills Evidence
@@ -99,35 +94,57 @@ Status values:
 - Missing details:
 ```
 
-## interview-stories.md
+## career-assets/jd-fit.md
 
 ```markdown
-# Interview Stories
+# JD Fit
 
-## Story Name
+## Target JD / Role
 
-- Keyword:
-- Situation:
-- Task:
-- Action:
-- Result:
-- What this proves:
-- Likely follow-up questions:
-- Short version:
-- Detailed version:
+## JD Capability Model
+
+| Requirement | Priority | Hidden Expectation | User Evidence | Fit | Gap |
+|---|---|---|---|---|---|
+
+## Strategy
+
+## Resume Adjustments
+
+## Interview Focus
 ```
 
-## resume-bullets.md
+## career-assets/resume-stories.md
 
 ```markdown
-# Resume Bullets
+# Resume Stories
 
-## Direction / JD
+## Resume Bullets
 
-### Company / Role
+## STAR Stories
 
-- Bullet:
-  - Source project:
-  - Evidence:
-  - Status: confirmed / 待确认
+## Self Introduction
+
+## Risk Points
+
+## Pending Confirmations
+```
+
+## career-assets/website-brief.md
+
+```markdown
+# Website Brief
+
+## Audience
+
+## Positioning
+
+## Style References
+
+## Style Interpretation
+
+## Information Architecture
+
+## Copy Blocks
+
+## Build Notes
 ```

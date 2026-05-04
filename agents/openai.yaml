@@ -1,7 +1,0 @@
-interface:
-  display_name: "仙人指路：职业资产深访"
-  short_description: "通过深访澄清职业方向，并沉淀简历、面试、网站素材"
-  brand_color: "#0F766E"
-  default_prompt: "Use $career-asset-interviewer to help me clarify my career direction from my resume and generate positioning keywords."
-policy:
-  allow_implicit_invocation: true

@@ -1,0 +1,7 @@
+interface:
+  display_name: "简历故事构建"
+  short_description: "把项目证据转成简历 bullet 和面试故事"
+  brand_color: "#7C3AED"
+  default_prompt: "Use $resume-story-builder to turn my project evidence into resume bullets and interview stories."
+policy:
+  allow_implicit_invocation: true
