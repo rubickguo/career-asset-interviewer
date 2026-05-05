@@ -1,6 +1,14 @@
 # Career Asset Schema
 
-Use this shared schema across all career skills. Each skill should update only the sections it owns and preserve confirmed user facts.
+Use this shared schema across all career skills. The career asset library is the central user memory. Every skill should read it before producing advice or artifacts, update only the sections it owns, and preserve confirmed user facts.
+
+## Principles
+
+- Treat user understanding as the source of truth.
+- Keep personal conclusions separate from reusable evidence.
+- Mark uncertain content as `待确认`.
+- Keep public-facing and private/internal evidence separate.
+- Prefer project evidence over adjectives.
 
 ## career-assets/profile.md
 
@@ -8,6 +16,10 @@ Use this shared schema across all career skills. Each skill should update only t
 # Profile
 
 ## Current Goal
+
+## Current Career Track
+
+## Continue Or Change Hypothesis
 
 ## Target Directions
 
@@ -18,11 +30,18 @@ Use this shared schema across all career skills. Each skill should update only t
 | Item | Reason | Type | Solvable? | Notes |
 |---|---|---|---|---|
 
+Types: true dislike / bad context / hard constraint / skill gap / identity block / assumed difficulty
+
 ## Strengths
 
 ## Preferences
 
 ## Constraints
+
+## Relevant Life Experience
+
+| Experience | Target Role Relevance | Evidence | Use In Resume? | Notes |
+|---|---|---|---|---|
 
 ## Confirmed Facts
 
@@ -37,10 +56,12 @@ Use this shared schema across all career skills. Each skill should update only t
 ## Direction Name
 
 - Type: high-certainty / growth / exploration / deprioritized
+- Current-track or transition:
 - Why it fits:
 - Evidence:
 - Gaps:
 - Risks:
+- Assumed difficulties:
 - Next experiment:
 ```
 
@@ -49,31 +70,98 @@ Use this shared schema across all career skills. Each skill should update only t
 ```markdown
 # Positioning Keywords
 
-| Keyword | Priority | Evidence Strength | Supporting Projects | Missing Proof | Status |
-|---|---|---|---|---|---|
+| Keyword | Role | Priority | Evidence Strength | Supporting Projects | Missing Proof | Decision | Status |
+|---|---|---|---|---|---|---|---|
 ```
 
-Status values: `confirmed`, `likely`, `weak`, `待确认`.
+Role values:
+
+- `primary`
+- `supporting`
+- `differentiator`
+- `minimize`
+- `experiment`
+
+Evidence strength values:
+
+- `strong`
+- `medium`
+- `weak`
+- `missing`
+
+Status values:
+
+- `confirmed`
+- `likely`
+- `待确认`
 
 ## career-assets/projects.md
+
+Use this as the main project card format.
 
 ```markdown
 ## Project Name
 
+### Classification
+
 - Company / Role / Time:
+- Project type:
+- Target direction(s):
 - Target keyword(s):
+- Resume priority: P0 / P1 / P2 / omit
+- Portfolio priority: P0 / P1 / P2 / omit
+- Suitable roles:
+- Public display: yes / no / needs sanitization
+- Privacy / sensitivity risks:
+
+### Context
+
 - Business context:
-- Problem:
-- User's role:
+- User / customer / stakeholder:
+- Core problem:
+- Why it mattered:
+
+### User Role
+
+- User's responsibility:
 - Decision rights:
+- Collaborators:
+- Scope:
+
+### Actions
+
 - Key actions:
+- Non-obvious judgment:
 - Hardest tradeoff:
-- Result:
-- Evidence:
+- Process / mechanism created:
+- Tools / AI / automation used:
+
+### Evidence
+
+- Result metrics:
+- Process metrics:
+- Quality metrics:
+- Adoption / usage evidence:
+- Before / after:
+- Evidence materials:
+- Metric confidence: high / medium / low / 待确认
+
+### Capability Mapping
+
 - Skills proven:
+- Transferable capability:
+- Differentiating detail:
+- Weak or missing proof:
+
+### Outputs
+
 - Resume bullet:
 - Interview STAR:
 - Website / portfolio version:
+- JD matching notes:
+
+### Review
+
 - Main narrative / secondary evidence / minimize:
 - Assumptions:
 - Questions to confirm:
@@ -86,11 +174,12 @@ Status values: `confirmed`, `likely`, `weak`, `待确认`.
 
 ## Skill Name
 
-- Evidence strength: strong / medium / weak
+- Evidence strength: strong / medium / weak / missing
 - Supporting projects:
 - Best proof:
 - Resume wording:
 - Interview angle:
+- Website angle:
 - Missing details:
 ```
 
@@ -101,16 +190,25 @@ Status values: `confirmed`, `likely`, `weak`, `待确认`.
 
 ## Target JD / Role
 
+## User Direction Context
+
 ## JD Capability Model
 
-| Requirement | Priority | Hidden Expectation | User Evidence | Fit | Gap |
-|---|---|---|---|---|---|
+| Requirement | Priority | Hidden Expectation | Evidence Needed |
+|---|---|---|---|
 
-## Strategy
+## Fit / Gap Matrix
 
-## Resume Adjustments
+| Requirement | User Evidence | Fit | Gap | Note |
+|---|---|---|---|---|
 
-## Interview Focus
+## Objective Recommendation
+
+值得重点投递 / 可以尝试 / 不建议优先 / 先补证据再投
+
+## Resume Adjustment Brief
+
+## Questions To Clarify
 ```
 
 ## career-assets/resume-stories.md
@@ -118,11 +216,17 @@ Status values: `confirmed`, `likely`, `weak`, `待确认`.
 ```markdown
 # Resume Stories
 
+## Target Resume Version
+
+## Resume Strategy
+
 ## Resume Bullets
 
 ## STAR Stories
 
 ## Self Introduction
+
+## Layout / PDF Notes
 
 ## Risk Points
 
@@ -138,6 +242,14 @@ Status values: `confirmed`, `likely`, `weak`, `待确认`.
 
 ## Positioning
 
+## User Preferences
+
+## User Dislikes
+
+## Product Identity
+
+C-end product / B-end product / technical builder / operations-growth / manager / creator / other
+
 ## Style References
 
 ## Style Interpretation
@@ -145,6 +257,8 @@ Status values: `confirmed`, `likely`, `weak`, `待确认`.
 ## Information Architecture
 
 ## Copy Blocks
+
+## Project Display Rules
 
 ## Build Notes
 ```

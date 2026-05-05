@@ -14,16 +14,19 @@ skills/
 └── personal-site-builder/
 shared/
 ├── career_asset_schema.md
+├── feedback_tips.md
 ├── orchestration.md
+├── output_boundaries.md
+├── product_principles.md
 └── safety_boundaries.md
 ```
 
 ## 每个 Skill 负责什么
 
-- `$career-direction-interviewer`：用户不清楚方向时使用，负责自我理解、职业主叙事、方向排序和核心关键词。
-- `$jd-fit-strategist`：用户有目标 JD 或目标岗位时使用，负责岗位能力模型、匹配度、差距和投递策略。
+- `$career-direction-interviewer`：用户需要结构化理解自己、澄清职业方向、确定职业主叙事和核心关键词时使用。
+- `$jd-fit-strategist`：完成用户理解后，用户有目标 JD 或目标岗位时使用，负责岗位能力模型、定性匹配、差距和投递策略。
 - `$resume-story-builder`：用户已有职业资产后使用，负责简历 bullet、项目卡、STAR 面试故事和自我介绍。
-- `$personal-site-builder`：用户要个人网站或作品集时使用，负责审美访谈、参考站点分析、网站文案和实现。
+- `$personal-site-builder`：用户要个人网站或作品集时使用，基于职业资产、审美偏好和参考站点负责网站文案和实现。
 
 ## 推荐调用链路
 
@@ -34,15 +37,17 @@ career-direction-interviewer -> resume-story-builder
 
 ```text
 有明确 JD：
-jd-fit-strategist -> resume-story-builder
+career-direction-interviewer（如果职业资产不完整）-> jd-fit-strategist -> resume-story-builder
 ```
 
 ```text
 要个人网站：
-career-direction-interviewer 或 resume-story-builder -> personal-site-builder
+career-direction-interviewer 或 resume-story-builder（如果职业资产不完整）-> personal-site-builder
 ```
 
 ## 共享职业资产协议
+
+所有 skill 遵循同一个产品原则：先了解用户，再给建议和操作。JD 分析和个人网站都是可选附加流程，不能替代“职业深访 -> 简历素材构建”这条主流程。
 
 所有 skill 通过 `career-assets/` 下的结构化文件衔接：
 

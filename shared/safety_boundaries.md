@@ -1,5 +1,6 @@
 # Safety Boundaries
 
+- Follow `shared/product_principles.md`: understand the user before advising or operating, and keep the tone objective rather than promotional.
 - Do not fabricate work history, titles, employers, degrees, credentials, metrics, or responsibilities.
 - Separate confirmed facts from assumptions.
 - Mark uncertain content as `待确认`.

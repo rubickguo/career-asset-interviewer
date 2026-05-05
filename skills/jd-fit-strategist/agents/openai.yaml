@@ -1,7 +1,7 @@
 interface:
   display_name: "JD 匹配策略"
-  short_description: "从目标岗位出发分析匹配度和投递策略"
+  short_description: "基于职业资产分析 JD 定性匹配和投递策略"
   brand_color: "#2563EB"
-  default_prompt: "Use $jd-fit-strategist to analyze this JD against my resume and identify the strategy."
+  default_prompt: "Use $jd-fit-strategist to analyze this JD against my career assets and identify the application strategy."
 policy:
   allow_implicit_invocation: true

@@ -11,11 +11,15 @@ Turn confirmed career assets into truthful, targeted resume and interview materi
 
 This skill owns expression and evidence repair. It does not decide the user's career direction.
 
+Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
+
 ## Inputs
 
 - `career-assets/profile.md`, `directions.md`, `keywords.md`, and `projects.md` when available.
 - Optional `career-assets/jd-fit.md`.
 - Resume draft or project notes.
+
+If `profile.md`, `directions.md`, or `keywords.md` are missing or contradictory, route back to `$career-direction-interviewer` before writing resume material.
 
 ## Workflow
 
@@ -27,6 +31,7 @@ Select the strongest evidence for the chosen direction or JD:
 - Supporting proof.
 - Projects to minimize.
 - Missing or weak evidence.
+- Work-relevant life experience, if it strengthens the target role.
 
 ### 2. Project Card Completion
 
@@ -39,6 +44,15 @@ For each priority project, clarify:
 - Tradeoffs.
 - Result.
 - Capability proven.
+- Resume priority, portfolio priority, public-display suitability, metric confidence, and evidence materials.
+
+Also ask about relevant non-work experience when the target role makes it meaningful:
+
+- Games roles: esports history, high-rank play, guild/community leadership, mod/map creation, fan/community operations.
+- AI/tool roles: personal tools, open-source projects, automation habits, self-built workflows.
+- Consumer product roles: creator experience, content practice, community participation, personal products.
+
+Only include life experience when it proves useful role fit. Do not add hobbies as filler.
 
 ### 3. Resume Issue Repair
 
@@ -50,6 +64,7 @@ Fix:
 - Contradictions.
 - Unsupported keywords.
 - Distracting projects.
+- Weak metrics, meaningless metric names, or results buried behind process descriptions.
 
 ### 4. Output Writing
 
@@ -61,12 +76,21 @@ Generate:
 - Self-introduction.
 - Risk explanations.
 
+Use `references/metrics_and_evidence.md` for quantitative evidence and `references/resume_layout_pdf.md` for HTML/PDF layout QA.
+
 ## Quality Rules
 
 - Do not fabricate metrics.
 - Prefer truthful quantified ranges or proxy evidence when exact data is unavailable.
 - Keep final resume wording clean; keep `待确认` notes outside final copy.
 - Make each bullet serve the chosen positioning or JD.
+- Put the strongest results before process details.
+- Prefer meaningful metrics over internal vanity metrics.
+- If no result metric exists, use process or operational metrics; if those are weak, move stronger quantified projects earlier.
+- Avoid bullets that only say what the user did. Show result, difference, or why the action was not generic.
+- Generate an HTML preview before PDF export when creating a formatted resume.
+- After PDF export, inspect the PDF or rendered preview for layout issues: large blank areas, single-character lines, clipped text, unreadable font size, awkward page breaks, and broken alignment.
+- Do not force a one-page resume if readability suffers. Two readable pages are better than one cramped page.
 
 ## Outputs
 
@@ -77,3 +101,7 @@ Create or update:
 - `career-assets/resume-stories.md`
 
 Use `../../shared/career_asset_schema.md` and `../../shared/safety_boundaries.md` when available.
+
+## Feedback
+
+If the user asks how to collect or interpret feedback about resume clarity, interview answers, weak stories, or credibility concerns, use `../../shared/feedback_tips.md`. Do not rewrite based on vague praise or polite rejection.

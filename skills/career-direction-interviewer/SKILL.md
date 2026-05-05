@@ -11,6 +11,8 @@ Help the user understand what they want, what they are good at, what they should
 
 This skill owns self-understanding and positioning. It does not own final resume writing, JD strategy, or website implementation.
 
+Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
+
 ## Inputs
 
 - Resume or work history, recommended.
@@ -19,9 +21,9 @@ This skill owns self-understanding and positioning. It does not own final resume
 
 ## Workflow
 
-### 1. Resume Pre-Parse
+### 1. Input And Resume Status
 
-Skim the resume only to build an interview map:
+First determine whether the user already has a resume. If they do, use it from the beginning to build the interview map. If they do not, ask for work history before generating narratives.
 
 - Timeline, companies, roles, projects.
 - Repeated keywords.
@@ -31,9 +33,13 @@ Skim the resume only to build an interview map:
 
 Do not rewrite the resume.
 
-### 2. Main Narrative Candidates
+### 2. Current-Career Continuity
 
-Generate 3-5 possible career narratives. Ask:
+Do not assume the user wants to change careers. First ask whether continuing the current career track with a better company, business domain, level, or narrative would solve the problem.
+
+### 3. Main Narrative Candidates
+
+Generate 3-5 resume-based possible career narratives. Ask:
 
 ```text
 哪个是你想成为的人？
@@ -41,7 +47,9 @@ Generate 3-5 possible career narratives. Ask:
 哪个你感兴趣，但证据还不足？
 ```
 
-### 3. Direction Interview
+### 4. Direction Interview
+
+Use `references/question_tree.md` for the interview path. Do not treat the following list as a flat questionnaire. Choose the next question based on the user's previous answer, suspected risk, and missing asset fields.
 
 Clarify:
 
@@ -52,7 +60,23 @@ Clarify:
 - What strengths are repeatedly proven by past work.
 - Current constraints: income, location, risk, credentials, time, health, family, runway.
 
-### 4. Direction Ranking
+Use light reassurance when the user seems rushed. After each round, produce a short working interpretation:
+
+- What this suggests.
+- What remains uncertain.
+- The next question and why it is being asked.
+
+### 5. Internet Role Branch
+
+For the first version, focus on:
+
+- Internet product manager.
+- Internet operations / growth.
+- Programmer / technical builder.
+- Management-adjacent roles as an auxiliary branch.
+- AI and gaming as domain overlays.
+
+### 6. Direction Ranking
 
 Rank directions as:
 
@@ -67,9 +91,13 @@ Use:
 priority = strength evidence + past experience + preference + market opportunity - transition cost - hard constraints
 ```
 
-### 5. Positioning Keywords
+### 7. Positioning Keywords
 
 Output target keywords and evidence status. Examples: `AI product`, `growth`, `B2B`, `UGC ecosystem`, `commercialization`, `platform governance`, `0-to-1`, `cross-functional execution`.
+
+### 8. Resume Optimization Handoff
+
+This skill can create a resume optimization brief, but final resume writing belongs to `$resume-story-builder`. JD analysis is optional. If a JD exists, route through `$jd-fit-strategist` only after career direction and positioning keywords are understood.
 
 ## Outputs
 
@@ -83,6 +111,7 @@ Use `../../shared/career_asset_schema.md` and `../../shared/safety_boundaries.md
 
 ## Handoff
 
-- For a specific JD, hand off to `$jd-fit-strategist`.
+- For a specific JD, hand off to `$jd-fit-strategist` only after the user's direction, target narrative, and keywords are sufficiently understood.
 - For resume bullets or interview stories, hand off to `$resume-story-builder`.
 - For a personal site, hand off to `$personal-site-builder`.
+- For market feedback that may affect direction or positioning, use `../../shared/feedback_tips.md` first. Do not revise direction unless the feedback is specific and credible.
