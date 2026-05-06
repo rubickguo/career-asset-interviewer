@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{NAME}} - B2B Product Portfolio</title>
+  <style>
+    :root { --ink:#1f2933; --muted:#667085; --accent:#0f766e; --line:#d9e2e7; --panel:#f7fafb; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#ffffff; line-height:1.6; }
+    main { max-width:1080px; margin:0 auto; padding:44px 24px; }
+    header { padding:56px 0 36px; border-bottom:1px solid var(--line); }
+    h1 { margin:0 0 16px; max-width:780px; font-size:52px; line-height:1.08; letter-spacing:0; }
+    h2 { margin:44px 0 16px; font-size:24px; letter-spacing:0; }
+    h3 { margin:0 0 8px; font-size:18px; letter-spacing:0; }
+    .lead { max-width:760px; color:var(--muted); font-size:18px; }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:28px; }
+    .metric,.case { border:1px solid var(--line); border-radius:10px; padding:16px; background:var(--panel); }
+    .metric strong { display:block; font-size:26px; color:var(--accent); }
+    .case { margin-top:14px; background:#fff; }
+    .case-grid { display:grid; grid-template-columns:180px 1fr; gap:16px; color:var(--muted); }
+    @media (max-width:760px){ h1{font-size:38px}.metrics,.case-grid{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>{{NAME}}</h1>
+      <p class="lead">{{POSITIONING}}</p>
+      <div class="metrics">
+        <div class="metric"><strong>{{METRIC_1}}</strong><span>{{METRIC_LABEL_1}}</span></div>
+        <div class="metric"><strong>{{METRIC_2}}</strong><span>{{METRIC_LABEL_2}}</span></div>
+        <div class="metric"><strong>{{METRIC_3}}</strong><span>{{METRIC_LABEL_3}}</span></div>
+      </div>
+    </header>
+    <section>
+      <h2>Selected Systems</h2>
+      <article class="case"><h3>{{PROJECT_TITLE}}</h3><div class="case-grid"><strong>Problem</strong><p>{{CORE_PROBLEM}}</p><strong>Decision</strong><p>{{PRODUCT_DECISION}}</p><strong>Result</strong><p>{{PROJECT_ACTION_RESULT}}</p></div></article>
+    </section>
+    <section><h2>Operating Principles</h2><p>{{WORKFLOW_AND_TRADEOFFS}}</p></section>
+    <section><h2>Contact</h2><p>{{CONTACT}}</p></section>
+  </main>
+</body>
+</html>

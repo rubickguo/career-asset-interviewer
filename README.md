@@ -2,6 +2,8 @@
 
 [中文说明](README.skill-pack.zh-CN.md)
 
+[旧版单体 skill 中文说明](LEGACY_README.zh-CN.md)
+
 Career Skills Pack is a set of focused Codex skills for career direction, JD fit, resume story building, and personal site creation.
 
 The previous single `career-asset-interviewer` skill has been split because the original scope was too broad. Each skill now owns one workflow and shares a common career asset protocol.
@@ -20,8 +22,30 @@ shared/
 ├── orchestration.md
 ├── output_boundaries.md
 ├── product_principles.md
+├── protocol_version.md
+├── skill_routing.md
 └── safety_boundaries.md
 ```
+
+## Directory Guide
+
+`skills/` contains the actual Codex skills. Each subdirectory is an independently triggerable workflow with its own `SKILL.md`, UI metadata in `agents/openai.yaml`, and optional `references/` or `assets/`.
+
+- `career-direction-interviewer/`: owns the initial career-direction interview, self-understanding, direction ranking, and positioning keywords.
+- `resume-story-builder/`: turns confirmed career assets into resume bullets, project cards, STAR stories, self-introductions, and resume layout/PDF guidance.
+- `jd-fit-strategist/`: optional add-on for JD decomposition, qualitative fit diagnosis, objective application recommendation, and resume adjustment strategy.
+- `personal-site-builder/`: optional add-on for personal websites and portfolio sites based on career assets, taste preferences, style references, and frontend quality checks.
+
+`shared/` contains cross-skill rules and protocols. These files are not standalone skills; they are the common operating system that keeps the skills consistent.
+
+- `product_principles.md`: global product philosophy, especially "understand the user before advising or producing artifacts".
+- `output_boundaries.md`: what each skill can and cannot output.
+- `orchestration.md`: routing logic between the main flow and optional add-ons.
+- `career_asset_schema.md`: shared schema for files under `career-assets/`.
+- `protocol_version.md`: compatibility version for the shared career asset protocol.
+- `skill_routing.md`: trigger and routing guide across the four skills.
+- `safety_boundaries.md`: truthfulness, privacy, and risk boundaries.
+- `feedback_tips.md`: lightweight guidance for collecting more credible feedback; not a formal iteration loop yet.
 
 ## When To Use Each Skill
 
@@ -66,3 +90,19 @@ career-assets/
 ```
 
 See `shared/career_asset_schema.md` for the schema.
+
+To initialize a local career asset folder, use:
+
+```bash
+node scripts/init-career-assets.mjs ./career-assets
+```
+
+Useful scripts:
+
+```bash
+node scripts/check-career-assets.mjs ./career-assets
+node scripts/check-resume-html.mjs ./exports/resume.html
+node scripts/render-resume-pdf.mjs ./exports/resume.html ./exports/resume.pdf
+```
+
+See `tests/evaluation_matrix.md` for lightweight fixture-based evaluation.

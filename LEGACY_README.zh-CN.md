@@ -1,4 +1,8 @@
-# 仙人指路：职业资产深访
+# LEGACY: 仙人指路：职业资产深访
+
+> 这是旧版单体 `career-asset-interviewer` skill 的历史 README。当前项目已经拆分为 skill pack，请优先阅读 [README.skill-pack.zh-CN.md](README.skill-pack.zh-CN.md)。
+>
+> 本文件仅保留历史上下文，里面的目录结构和部分文件名已经不再代表当前仓库。
 
 [English README](README.md)
 

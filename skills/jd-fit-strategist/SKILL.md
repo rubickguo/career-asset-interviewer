@@ -11,6 +11,8 @@ Analyze an optional target JD against a user who has already been understood thr
 
 Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
 
+Protocol compatibility: read `../../shared/protocol_version.md`; this skill is compatible with career asset protocol `0.2.x`.
+
 Core rule:
 
 ```text

@@ -1,6 +1,6 @@
 # Skill Orchestration
 
-All routing decisions must follow `shared/product_principles.md` and `shared/output_boundaries.md`: understand the user first, keep recommendations objective, and do downstream operations only after diagnosis.
+All routing decisions must follow `shared/product_principles.md`, `shared/output_boundaries.md`, `shared/skill_routing.md`, and `shared/protocol_version.md`: understand the user first, keep recommendations objective, and do downstream operations only after diagnosis.
 
 Use this routing logic when deciding which skill should handle a task.
 

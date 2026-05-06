@@ -13,6 +13,8 @@ This skill owns self-understanding and positioning. It does not own final resume
 
 Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
 
+Protocol compatibility: read `../../shared/protocol_version.md`; this skill is compatible with career asset protocol `0.2.x`.
+
 ## Inputs
 
 - Resume or work history, recommended.
@@ -49,7 +51,7 @@ Generate 3-5 resume-based possible career narratives. Ask:
 
 ### 4. Direction Interview
 
-Use `references/question_tree.md` for the interview path. Do not treat the following list as a flat questionnaire. Choose the next question based on the user's previous answer, suspected risk, and missing asset fields.
+Use `references/question_tree.md` for the interview path. Do not treat the following list as a flat questionnaire. Choose the next question based on the user's previous answer, suspected risk, and missing asset fields. If adding a new industry or function branch, follow `references/extension_guide.md`.
 
 Clarify:
 

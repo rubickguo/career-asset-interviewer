@@ -13,6 +13,8 @@ This skill owns expression and evidence repair. It does not decide the user's ca
 
 Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
 
+Protocol compatibility: read `../../shared/protocol_version.md`; this skill is compatible with career asset protocol `0.2.x`.
+
 ## Inputs
 
 - `career-assets/profile.md`, `directions.md`, `keywords.md`, and `projects.md` when available.
@@ -76,7 +78,7 @@ Generate:
 - Self-introduction.
 - Risk explanations.
 
-Use `references/metrics_and_evidence.md` for quantitative evidence and `references/resume_layout_pdf.md` for HTML/PDF layout QA.
+Use `references/metrics_and_evidence.md` for quantitative evidence and `references/resume_layout_pdf.md` for HTML/PDF layout QA. When producing formatted resume files, prefer the root scripts `scripts/check-resume-html.mjs` and `scripts/render-resume-pdf.mjs` instead of writing one-off conversion code.
 
 ## Quality Rules
 

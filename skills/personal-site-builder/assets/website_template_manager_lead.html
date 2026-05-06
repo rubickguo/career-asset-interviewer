@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{NAME}} - Leadership Portfolio</title>
+  <style>
+    :root { --ink:#24272f; --muted:#667085; --accent:#4f46e5; --line:#dde1ea; --panel:#f8f8ff; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink); background:#fff; line-height:1.6; }
+    main { max-width:1100px; margin:0 auto; padding:48px 24px; }
+    header { padding:54px 0 34px; }
+    h1 { margin:0 0 14px; max-width:780px; font-size:54px; line-height:1.08; letter-spacing:0; }
+    h2 { margin:44px 0 16px; font-size:24px; letter-spacing:0; }
+    .lead { max-width:760px; color:var(--muted); font-size:18px; }
+    .scope { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:28px; }
+    .scope div,.case { border:1px solid var(--line); border-radius:14px; padding:18px; background:var(--panel); }
+    .scope strong { display:block; color:var(--accent); font-size:24px; }
+    .case { margin-top:14px; background:#fff; }
+    @media (max-width:760px){ h1{font-size:38px}.scope{grid-template-columns:1fr} }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>{{NAME}}</h1>
+      <p class="lead">{{POSITIONING}}</p>
+      <div class="scope">
+        <div><strong>{{SCOPE_1}}</strong><span>{{SCOPE_LABEL_1}}</span></div>
+        <div><strong>{{SCOPE_2}}</strong><span>{{SCOPE_LABEL_2}}</span></div>
+        <div><strong>{{SCOPE_3}}</strong><span>{{SCOPE_LABEL_3}}</span></div>
+      </div>
+    </header>
+    <section>
+      <h2>Leadership Cases</h2>
+      <article class="case"><h3>{{PROJECT_TITLE}}</h3><p>{{TEAM_CONTEXT}}</p><p>{{DECISION_AND_RESULT}}</p></article>
+    </section>
+    <section><h2>How I Lead</h2><p>{{LEADERSHIP_PRINCIPLES}}</p></section>
+    <section><h2>Contact</h2><p>{{CONTACT}}</p></section>
+  </main>
+</body>
+</html>

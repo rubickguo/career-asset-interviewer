@@ -15,6 +15,15 @@ Draft content
 
 Do not jump directly from markdown to final PDF when layout matters.
 
+Prefer reusable scripts when available:
+
+```bash
+node scripts/check-resume-html.mjs path/to/resume.html
+node scripts/render-resume-pdf.mjs path/to/resume.html path/to/resume.pdf
+```
+
+`render-resume-pdf.mjs` requires Playwright in the working project. If Playwright is not installed, state that dependency clearly instead of rewriting a temporary converter.
+
 ## HTML Preview Requirements
 
 - Use stable page width and print styles.

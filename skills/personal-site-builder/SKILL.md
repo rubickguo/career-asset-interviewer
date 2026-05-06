@@ -13,6 +13,8 @@ This skill owns style discovery, site information architecture, website copy, an
 
 Follow `../../shared/product_principles.md` and `../../shared/output_boundaries.md`: be objective, understand the user before advising, and do not perform downstream operations before diagnosis.
 
+Protocol compatibility: read `../../shared/protocol_version.md`; this skill is compatible with career asset protocol `0.2.x`.
+
 ## Inputs
 
 - Career positioning and keywords.
@@ -72,6 +74,12 @@ Produce:
 If the user asks for implementation:
 
 - If a `frontend-design` skill or equivalent design guidance is available, use it to review the page.
+- Select an asset template based on product identity:
+  - C-end product -> `assets/website_template_c_end_product.html`
+  - B-end product -> `assets/website_template_b_end_product.html`
+  - technical builder -> `assets/website_template_technical_builder.html`
+  - manager / lead -> `assets/website_template_manager_lead.html`
+  - unclear identity -> ask first, then fall back to `assets/website_template.html`
 - Use a simple static HTML file when no framework is specified.
 - Use the existing project stack when working inside an app.
 - Keep the first screen focused on the user's positioning.
