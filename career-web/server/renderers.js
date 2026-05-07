@@ -12,18 +12,101 @@ function list(items) {
   return `<ul>${values.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
 }
 
+function normalizeSectionName(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "项目经历";
+  if (/技能/.test(raw) && !/经历|项目/.test(raw)) return "核心能力";
+  if (/教育/.test(raw)) return "教育经历";
+  if (/作品|开源|portfolio/i.test(raw)) return "个人作品";
+  if (/个人|简介|summary/i.test(raw)) return "个人简介";
+  if (/项目/.test(raw)) return "项目经历";
+  if (/工作|经历/.test(raw)) return "工作经历";
+  return raw.replace(/\s*\/\s*/g, " / ");
+}
+
+function cleanBulletText(value) {
+  return String(value || "")
+    .replace(/^[-•]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseCandidateName(resumeMeta, resumeText) {
+  if (resumeMeta?.candidateName) return resumeMeta.candidateName;
+  const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const first = lines.find((line) => !/@|电话|手机|邮箱|微信|GitHub|http/i.test(line));
+  return first || "候选人";
+}
+
+function extractContacts(resumeText) {
+  const text = String(resumeText || "");
+  const contacts = [];
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  const phone = text.match(/(?:\+?86[-\s]?)?1[3-9]\d{9}/)?.[0];
+  const github = text.match(/(?:https?:\/\/)?github\.com\/[A-Za-z0-9_-]+/i)?.[0];
+  const site = text.match(/(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9-]+\.(?:com|cn|ltd|io|dev)(?:\/[^\s，。｜|]*)?/i)?.[0];
+  if (site && !/github\.com/i.test(site)) contacts.push(["作品集", site.replace(/^https?:\/\//i, "")]);
+  if (phone) contacts.push(["手机", phone]);
+  if (email) contacts.push(["邮箱", email]);
+  if (github) contacts.push(["GitHub", github.replace(/^https?:\/\//i, "")]);
+  return contacts.slice(0, 4);
+}
+
+function bulletTitle(text) {
+  const match = String(text || "").match(/^(.{2,24}?)[：:]\s*(.+)$/);
+  if (!match) return ["", text];
+  return [match[1], match[2]];
+}
+
+function sectionItems(grouped, names) {
+  const wanted = new Set(names);
+  return Object.entries(grouped)
+    .filter(([section]) => wanted.has(section))
+    .flatMap(([, items]) => items);
+}
+
+function renderSectionTitle(title) {
+  return `<h2 class="section-title">${escapeHtml(title)}</h2>`;
+}
+
+function renderBulletList(items) {
+  if (!items.length) return "";
+  return `<ul>${items.map((item) => {
+    const [title, body] = bulletTitle(item.text || item);
+    return `<li>${title ? `<strong>${escapeHtml(title)}：</strong>` : ""}${escapeHtml(body || item.text || item)}</li>`;
+  }).join("")}</ul>`;
+}
+
 export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining, resumeMeta, resumeText }) {
   const bullets = Array.isArray(resumeStrategy?.bullets) ? resumeStrategy.bullets : [];
   const grouped = bullets.reduce((acc, item) => {
-    const section = item.section || "经历";
+    const section = normalizeSectionName(item.section);
     acc[section] ||= [];
-    acc[section].push(item);
+    const text = cleanBulletText(item.text);
+    if (text) acc[section].push({ ...item, text });
     return acc;
   }, {});
   const keywordOrder = Array.isArray(resumeStrategy?.keywordOrder) ? resumeStrategy.keywordOrder : [];
-  const projectOrder = Array.isArray(resumeStrategy?.projectOrder) ? resumeStrategy.projectOrder : [];
+  const projectCards = Array.isArray(projectMining?.projectCards) ? projectMining.projectCards : [];
+  const fallbackProjectBullets = projectCards
+    .map((item) => cleanBulletText(item.resumePotential || item.evidence?.[0] || ""))
+    .filter(Boolean)
+    .slice(0, 5);
 
-  const candidateName = resumeMeta?.candidateName || String(resumeText || "").split("\n").map((line) => line.trim()).find(Boolean) || "候选人";
+  const candidateName = parseCandidateName(resumeMeta, resumeText);
+  const contacts = extractContacts(resumeText);
+  const summary = resumeStrategy?.positioning || careerDirection?.recommendedTrack || careerDirection?.headline || "职业定位待确认";
+  const intro = resumeStrategy?.professionalSummary || resumeStrategy?.summary || "";
+  const introItems = sectionItems(grouped, ["个人简介"]);
+  const workItems = sectionItems(grouped, ["工作经历"]);
+  const projectItems = sectionItems(grouped, ["项目经历"]);
+  const abilityItems = sectionItems(grouped, ["核心能力"]);
+  const educationItems = sectionItems(grouped, ["教育经历"]);
+  const portfolioItems = sectionItems(grouped, ["代表作品", "个人作品"]);
+  const remainingItems = Object.entries(grouped)
+    .filter(([section]) => !["个人简介", "工作经历", "项目经历", "核心能力", "教育经历", "代表作品", "个人作品"].includes(section))
+    .flatMap(([, items]) => items);
+  const mainExperienceItems = [...workItems, ...projectItems];
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -32,73 +115,81 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Resume Preview</title>
   <style>
-    @page { size: A4; margin: 12mm; }
+    :root {
+      --ink: #172033;
+      --muted: #596579;
+      --subtle: #7b8798;
+      --line: #dbe4eb;
+      --soft: #f6f9fb;
+      --accent: #0a8f83;
+    }
+    @page { size: A4; margin: 13mm 14mm; }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      color: #1f2933;
-      background: #f4f6f8;
-      font-family: Inter, "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
+      color: var(--ink);
+      background: #eef3f6;
+      font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+      font-size: 14.2px;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
-      line-height: 1.55;
+      line-height: 1.66;
     }
-    main {
+    a { color: inherit; text-decoration: none; }
+    .page {
       width: 210mm;
       min-height: 297mm;
-      margin: 24px auto;
-      padding: 18mm;
+      margin: 12px auto;
+      padding: 14mm 15mm;
       background: #fff;
-      box-shadow: 0 20px 60px rgba(31, 41, 51, 0.12);
+      box-shadow: 0 18px 60px rgba(28, 45, 65, 0.12);
     }
-    header { border-bottom: 2px solid #1f2933; padding-bottom: 14px; margin-bottom: 18px; }
-    h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.2; letter-spacing: 0; }
-    .positioning { margin: 0; color: #52606d; font-size: 14px; }
-    section { break-inside: avoid; margin-top: 18px; }
-    h2 { margin: 0 0 8px; font-size: 15px; line-height: 1.3; border-bottom: 1px solid #d9e2ec; padding-bottom: 5px; }
-    h3 { margin: 12px 0 5px; font-size: 13px; }
-    ul { margin: 6px 0 0; padding-left: 18px; }
-    li { margin: 4px 0; font-size: 12px; }
-    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip { padding: 3px 7px; border-radius: 999px; background: #edf2f7; color: #334e68; font-size: 12px; }
-    .note { color: #627d98; font-size: 12px; margin-top: 4px; }
+    header { display: grid; gap: 14px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
+    .header-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 24px; align-items: center; }
+    h1 { margin: 0; font-size: 34px; line-height: 1; letter-spacing: 0; white-space: nowrap; }
+    .contacts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px 18px; color: var(--muted); font-size: 13.5px; line-height: 1.35; text-align: right; }
+    .contacts span { white-space: nowrap; }
+    .contacts strong { color: var(--ink); font-weight: 800; }
+    .headline { margin: 0; padding: 11px 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); color: var(--muted); font-size: 14px; line-height: 1.68; }
+    section { margin-top: 22px; break-inside: avoid; }
+    .section-title { display: flex; align-items: center; gap: 9px; margin: 0 0 12px; color: var(--ink); font-size: 17.5px; font-weight: 800; line-height: 1.2; }
+    .section-title::before { display: block; width: 5px; height: 18px; border-radius: 999px; background: var(--accent); content: ""; }
+    .job { position: relative; padding: 0 0 7px 18px; border-left: 1px solid var(--line); }
+    .job::before { position: absolute; top: 5px; left: -4px; width: 8px; height: 8px; border: 1.5px solid var(--accent); border-radius: 50%; background: #fff; content: ""; }
+    ul { margin: 0; padding-left: 18px; }
+    li { margin: 0 0 8px; padding-left: 2px; }
+    li::marker { color: var(--accent); }
+    li strong { color: var(--ink); font-weight: 800; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+    .chip { padding: 3px 7px; border-radius: 999px; background: #e8f6f3; color: #0f766e; font-size: 12px; font-weight: 800; }
+    .work-list { display: grid; gap: 10px; padding-left: 0; list-style: none; }
+    .work-list li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #fff, var(--soft)); }
+    .education { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
+    .note { color: var(--subtle); font-size: 12px; margin: 0; }
     @media print {
       body { background: #fff; }
-      main { width: auto; min-height: auto; margin: 0; padding: 0; box-shadow: none; }
+      .page { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+      .job { break-inside: auto; }
+      .section-title { break-after: avoid; }
     }
   </style>
 </head>
 <body>
-  <main>
+  <main class="page">
     <header>
-      <h1>${escapeHtml(candidateName)}</h1>
-      <p class="positioning">${escapeHtml(resumeStrategy?.positioning || careerDirection?.recommendedTrack || "职业定位待确认")}</p>
+      <div class="header-top">
+        <h1>${escapeHtml(candidateName)}</h1>
+        <div class="contacts">${contacts.map(([label, value]) => `<span><strong>${escapeHtml(label)}</strong> ${escapeHtml(value)}</span>`).join("")}</div>
+      </div>
+      <p class="headline">${escapeHtml(summary)}</p>
     </header>
-    <section>
-      <h2>核心关键词</h2>
-      <div class="chips">${keywordOrder.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("") || '<span class="chip">待确认</span>'}</div>
-    </section>
-    <section>
-      <h2>项目排序</h2>
-      ${list(projectOrder)}
-    </section>
-    ${Object.entries(grouped)
-      .map(([section, items]) => `<section><h2>${escapeHtml(section)}</h2><ul>${items
-        .map((item) => `<li>${escapeHtml(item.text || "")}${item.risk ? `<div class="note">风险：${escapeHtml(item.risk)}</div>` : ""}</li>`)
-        .join("")}</ul></section>`)
-      .join("")}
-    <section>
-      <h2>待确认问题</h2>
-      ${list(resumeStrategy?.pendingQuestions)}
-    </section>
-    <section>
-      <h2>版式注意</h2>
-      ${list(resumeStrategy?.layoutNotes)}
-    </section>
-    <section>
-      <h2>项目证据补强</h2>
-      ${list((projectMining?.priorityProjects || []).map((item) => `${item.name || "项目"}：${item.why || ""}`))}
-    </section>
+    ${keywordOrder.length ? `<section><div class="chips">${keywordOrder.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
+    ${(intro || introItems.length || abilityItems.length) ? `<section>${renderSectionTitle("个人简介")}${intro ? `<p>${escapeHtml(intro)}</p>` : ""}${renderBulletList([...introItems, ...abilityItems])}</section>` : ""}
+    ${(mainExperienceItems.length || fallbackProjectBullets.length) ? `<section>${renderSectionTitle(mainExperienceItems.length && !projectItems.length ? "工作经历" : "项目经历")}<article class="job">${renderBulletList(mainExperienceItems.length ? mainExperienceItems : fallbackProjectBullets)}</article></section>` : ""}
+    ${remainingItems.length ? `<section>${renderSectionTitle("其他经历")}${renderBulletList(remainingItems)}</section>` : ""}
+    ${portfolioItems.length ? `<section>${renderSectionTitle("个人作品")}${renderBulletList(portfolioItems).replace("<ul>", "<ul class=\"work-list\">")}</section>` : ""}
+    ${educationItems.length ? `<section>${renderSectionTitle("教育经历")}<div class="education">${educationItems.map((item) => escapeHtml(item.text)).join("<br>")}</div></section>` : ""}
+    ${!Object.keys(grouped).length && !fallbackProjectBullets.length ? `<section>${renderSectionTitle("简历内容")}<p class="note">还没有可用于预览的简历 bullet。请先生成或补充简历策略。</p></section>` : ""}
   </main>
 </body>
 </html>`;

@@ -18,6 +18,10 @@ const workspaceRootDir = process.env.CAREER_WEB_DATA || path.join(rootDir, "work
 const execFileAsync = promisify(execFile);
 const sessionStore = new AsyncLocalStorage();
 
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
 function buildDirs(workspaceDir) {
   return {
   assets: path.join(workspaceDir, "career-assets"),
@@ -707,6 +711,134 @@ function done(results, stepId) {
   return Boolean(results?.[stepId]?.status === "done" || results?.[stepId]?.result);
 }
 
+function countMatches(text, patterns) {
+  return patterns.reduce((count, pattern) => count + (String(text || "").match(pattern) || []).length, 0);
+}
+
+function hasUserAnsweredCareerQuestions(context) {
+  return String(context?.careerAnswers || "").trim().length > 20;
+}
+
+function resumeHasEnoughEvidenceForSkippingInterview(context, resumeMeta) {
+  const text = String(context?.resumeText || "");
+  const charCount = Number(resumeMeta?.charCount || text.length || 0);
+  const structureSignals = countMatches(text, [
+    /工作经历|项目经历|实习经历|职业经历|Experience|Projects|Employment/gi
+  ]);
+  const actionSignals = countMatches(text, [
+    /负责|主导|推动|搭建|设计|上线|优化|增长|转化|留存|交付|协作|管理|复盘|落地|built|led|launched|improved|owned|designed/gi
+  ]);
+  const metricSignals = countMatches(text, [
+    /\d+(\.\d+)?\s*(%|万|千|k|K|w|W|人|次|元|月|天|年|倍|小时|分钟|DAU|MAU|GMV|ROI|CTR|CVR)/g
+  ]);
+  return charCount >= 1800 && structureSignals >= 1 && actionSignals >= 6 && metricSignals >= 2;
+}
+
+function projectEvidenceLooksSufficient(result) {
+  const projects = [
+    ...asArray(result?.priorityProjects),
+    ...asArray(result?.projectCards)
+  ];
+  if (projects.length >= 2) return true;
+  const serialized = JSON.stringify(result || "");
+  const missingSignals = countMatches(serialized, [/缺失|不足|待确认|missing|unclear|unknown/gi]);
+  const metricSignals = countMatches(serialized, [/\d+(\.\d+)?\s*(%|万|千|k|K|w|W|人|次|元|月|天|年|倍|DAU|MAU|GMV|ROI|CTR|CVR)/g]);
+  return projects.length >= 1 && metricSignals >= 2 && missingSignals <= 1;
+}
+
+function fallbackDirectionQuestions() {
+  return [
+    {
+      id: "current_track_or_change",
+      question: "先不急着说要不要换方向。你更倾向于继续沿着现在的职业轨道找机会，还是已经明确想换到另一个岗位？如果想换，吸引你的是什么，不想回去的又是什么？",
+      why: "先区分“继续当前职业但换环境”和“真正转向”，避免把短期焦虑误判成职业方向问题。"
+    },
+    {
+      id: "work_mode_preference",
+      question: "回想你做得比较有劲的一段工作：当时你是在执行明确任务，还是在定义问题、搭流程、定规则、做工具或影响别人行动？哪一种更像你想长期靠近的工作方式？",
+      why: "这能帮助判断你的核心偏好是执行交付、问题定义、机制建设、技术实现还是团队推进。"
+    },
+    {
+      id: "evidence_to_verify",
+      question: "如果只挑一个你觉得最能代表自己的经历，不一定写在简历里，它是什么？可以是工作项目，也可以是和目标岗位相关的生活经历、作品、游戏/社区/AI 工具实践。",
+      why: "很多关键证据不在简历里。这里是在找能支撑职业叙事的真实素材，而不是让你自己总结优势。"
+    }
+  ];
+}
+
+function fallbackProjectQuestions() {
+  return [
+    {
+      id: "project_before_after",
+      question: "挑一个最重要的项目，按“前后对比”说清楚：做之前是什么状态，做之后哪一个指标、效率、质量、使用人数或协作方式发生了变化？",
+      why: "简历需要可信变化，而不是只写做了什么。没有结果指标时，也可以先找过程指标或质量指标。"
+    },
+    {
+      id: "project_role_boundary",
+      question: "这个项目里，哪些判断是你做的？哪些事情是你推动别人一起完成的？哪些只是你参与执行的？",
+      why: "这是为了确认角色边界，避免把团队结果写成个人 claim，也避免低估你的真实贡献。"
+    },
+    {
+      id: "project_hard_tradeoff",
+      question: "这个项目里最难的取舍是什么？比如资源不够、目标不清、跨团队阻力、数据不好看、上线风险、用户不买账，你当时怎么判断？",
+      why: "真正有区分度的能力通常藏在取舍里，而不是藏在职责列表里。"
+    }
+  ];
+}
+
+function forceAsk(result, { action, reason, questions }) {
+  const next = { ...(result || {}) };
+  next.readiness = {
+    ...(next.readiness || {}),
+    informationSufficient: false,
+    confidence: next.readiness?.confidence || "low",
+    shouldAskUser: true,
+    recommendedNextAction: action,
+    reason
+  };
+  const existingQuestions = asArray(next.questions).filter((item) => item?.question);
+  next.questions = existingQuestions.length ? existingQuestions.slice(0, 3) : questions;
+  return next;
+}
+
+function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
+  if (
+    stepId === "career_direction" &&
+    !hasUserAnsweredCareerQuestions(context) &&
+    !resumeHasEnoughEvidenceForSkippingInterview(context, resumeMeta) &&
+    result?.readiness?.shouldAskUser === false
+  ) {
+    return forceAsk(result, {
+      action: "ask_direction_questions",
+      reason: `模型判断可跳过问答，但当前简历文本里的经历、项目动作和指标证据过少。为避免误判，需要先完成第一轮访谈。模型原判断：${result?.readiness?.reason || "未说明"}`,
+      questions: fallbackDirectionQuestions()
+    });
+  }
+  if (
+    stepId === "project_mining" &&
+    !projectEvidenceLooksSufficient(result) &&
+    ["run_resume_strategy", "render_resume"].includes(String(result?.readiness?.recommendedNextAction || ""))
+  ) {
+    return forceAsk(result, {
+      action: "ask_project_questions",
+      reason: `模型判断可直接生成简历策略，但项目证据中缺少足够的项目卡、指标或角色边界。为避免把职责写成成果，需要先补项目事实。模型原判断：${result?.readiness?.reason || "未说明"}`,
+      questions: fallbackProjectQuestions()
+    });
+  }
+  return result;
+}
+
+function recommendedNextAction(results, stepId) {
+  return String(results?.[stepId]?.result?.readiness?.recommendedNextAction || "");
+}
+
+function allowsResumeStrategy(results) {
+  if (done(results, "project_mining")) return true;
+  const careerNext = recommendedNextAction(results, "career_direction");
+  const projectNext = recommendedNextAction(results, "project_mining");
+  return ["run_resume_strategy", "render_resume"].includes(careerNext) || ["run_resume_strategy", "render_resume"].includes(projectNext);
+}
+
 function actionGate(stepId, context) {
   const results = context.llmResults || {};
   const hasResume = context.resumeMeta?.parseStatus === "parsed";
@@ -714,7 +846,7 @@ function actionGate(stepId, context) {
   const gates = {
     career_direction: [hasResume, "需要先上传并解析简历。"],
     project_mining: [done(results, "career_direction"), "需要先完成职业方向诊断。"],
-    resume_strategy: [done(results, "project_mining"), "需要先完成项目证据提炼。"],
+    resume_strategy: [allowsResumeStrategy(results), "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
     resume_render: [done(results, "resume_strategy"), "需要先生成简历策略。"],
     jd_fit: [done(results, "career_direction") && hasJd, hasJd ? "需要先完成职业方向诊断。" : "需要先粘贴 JD。"],
     personal_site: [done(results, "project_mining") && done(results, "resume_strategy"), "需要先完成项目证据和简历策略。"]
@@ -810,6 +942,7 @@ async function buildWorkflowContext() {
     skillsEvidence: await readText(path.join(dirs.assets, "skills-evidence.md")),
     resumeStories: await readText(path.join(dirs.assets, "resume-stories.md")),
     careerAnswers: await readText(path.join(dirs.intake, "career-direction-answers.md")),
+    mirrorFeedback: await readText(path.join(dirs.intake, "mirror-feedback.md")),
     jdText: await readText(path.join(dirs.intake, "jd.md")),
     websiteBrief: await readText(path.join(dirs.assets, "website-brief.md"))
   };
@@ -1001,7 +1134,8 @@ async function executeWorkflowStep(stepId) {
     const messages = buildMessages(stepId, context);
     const startedAt = new Date().toISOString();
     const llmResponse = await callDeepSeek(rootDir, messages, { json: true, thinking: false });
-    const result = parseJsonResult(llmResponse.content);
+    const rawResult = parseJsonResult(llmResponse.content);
+    const result = normalizeWorkflowResult(stepId, rawResult, context, resumeMeta);
     const payload = {
       stepId,
       status: "done",
@@ -1249,6 +1383,29 @@ ${item.answer || "未回答"}
   }
 });
 
+app.post("/api/intake/mirror-feedback", async (req, res, next) => {
+  try {
+    await ensureWorkspace();
+    const savedAt = new Date().toISOString();
+    const entry = {
+      savedAt,
+      type: String(req.body.type || "unknown"),
+      choice: String(req.body.choice || ""),
+      detail: String(req.body.detail || "").trim()
+    };
+    const markdown = `## ${savedAt} / ${entry.type}
+
+- 选择：${entry.choice || "未选择"}
+- 细节：${entry.detail || "无"}
+`;
+    await fs.appendFile(path.join(dirs.intake, "mirror-feedback.md"), `\n${markdown}`, "utf8");
+    await fs.appendFile(path.join(dirs.intake, "mirror-feedback.jsonl"), `${JSON.stringify(entry)}\n`, "utf8");
+    res.json({ ok: true, entry });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/intake/jd", async (req, res, next) => {
   try {
     await ensureWorkspace();
@@ -1378,10 +1535,25 @@ app.post("/api/results", async (req, res, next) => {
 });
 
 const distDir = path.join(rootDir, "dist");
-app.use(express.static(distDir));
+app.use(
+  express.static(distDir, {
+    setHeaders(res, filePath) {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-store");
+        return;
+      }
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        return;
+      }
+      res.setHeader("Cache-Control", "no-cache");
+    }
+  })
+);
 app.get(/.*/, async (req, res, next) => {
   if (req.path.startsWith("/api/") || req.path.startsWith("/exports/")) return next();
   try {
+    res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.join(distDir, "index.html"));
   } catch (error) {
     next(error);

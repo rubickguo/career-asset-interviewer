@@ -38,68 +38,53 @@ function getSessionId() {
 const questionFallback = [
   {
     id: "target_direction",
-    question: "如果先不急着换赛道，你希望下一份工作和现在最大的不同是什么？",
-    placeholder: "可以从工作内容、团队环境、成长空间、判断权、强度、收入或作品感里选。这里不是让你做决定，只是先看你真正想改变什么。"
+    question: "我先假设：你未必一定要换职业，可能只是想换一种工作方式。这个判断哪里不对？",
+    placeholder: "可以写：其实我就是想转行；或者问题主要在公司/业务/团队；或者我想保留当前职业，但不想继续低判断权、低反馈、低作品感。"
   },
   {
     id: "change_scope",
-    question: "如果还是做当前岗位，但换一个业务、团队或公司，你觉得问题会缓解吗？",
-    placeholder: "如果会，说明问题可能不在职业本身；如果不会，我们再认真看转向。你可以直接写直觉，不需要证明自己。"
+    question: "如果继续当前职业轨道，换业务、团队、公司或层级，哪些问题会缓解？哪些仍然不会？",
+    placeholder: "这不是劝你留下，而是先分清：你要离开的到底是岗位、环境、工作方式，还是某种被固定住的身份。"
   },
   {
     id: "strengths",
-    question: "过去别人最容易在什么时候依赖你？",
-    placeholder: "不用写成优势。写具体场景：混乱时找你拆问题、上线前找你兜底、需要判断时找你拿主意、需要推进时找你协调。"
-  },
-  {
-    id: "dislikes",
-    question: "有哪些工作状态，是你不想再回去的？",
-    placeholder: "可以写“不想做什么”，也可以写“不想再处在什么状态”。比如低自主权、只有执行没有判断、做完没有反馈、长期高压但没有成长。"
+    question: "我需要验证一个关键点：过去别人最容易在什么场景下依赖你？你又最不想再回到什么状态？",
+    placeholder: "写具体场景即可：混乱时找你拆问题、上线前找你兜底、需要判断时找你拿主意；也可以写你不想再经历的状态，比如只有执行、没有反馈、长期高压但没有成长。"
   }
 ];
 
 const projectQuestionFallback = [
   {
     id: "project_most_valuable",
-    question: "如果只允许留下 2-3 个项目，你最不想删掉哪几个？",
-    placeholder: "写项目名之外，也写为什么舍不得删：它证明了你的判断、推进、技术深度、业务理解、结果，还是某种别人看不见的能力。"
+    question: "我先不让你总结能力。只看事实：如果只留下 2-3 个项目或非正式经历，你最不想删掉哪几个？",
+    placeholder: "可以是工作项目，也可以是和目标方向相关的游戏、社区、内容、开源、长期研究。写名字和一句为什么：它证明了判断、推进、技术深度、业务理解、结果，还是某种别人看不见的能力。"
   },
   {
     id: "project_role_boundary",
-    question: "这些项目里，哪些判断是你做的？哪些只是你执行的？",
-    placeholder: "不用夸大。我们要分清：你定义了问题、设计了方案、做了关键取舍，还是主要负责实现和交付。边界越清楚，简历越可信。"
+    question: "这些经历里，哪些关键判断是你做的？哪些主要是你执行或协作完成的？",
+    placeholder: "不用夸大。我们要分清：你定义问题、设计方案、做关键取舍、推进协作、实现交付分别到了哪一步。边界越清楚，简历越可信。"
   },
   {
     id: "project_metrics",
-    question: "这些项目有没有能被别人相信的变化？",
-    placeholder: "优先写结果指标；没有结果就写过程和质量：效率、稳定性、规模、覆盖范围、错误减少、交付周期、使用人数、被复用次数。"
-  },
-  {
-    id: "life_experience",
-    question: "有没有一段“不像工作经历”，但其实能解释你的经历？",
-    placeholder: "比如游戏、社区、内容、开源、长期研究某类产品、组织过某个活动。它不一定写进简历，但可能帮助我们理解你为什么适合某个方向。"
+    question: "挑一个最重要的项目，按“前后对比”说清楚：做之前是什么状态，做之后哪一个指标或现象变了？",
+    placeholder: "只写一个项目也可以。按这个格式填：之前：___；我做了：___；之后：___。如果没有结果指标，就写过程变化，例如交付周期、错误率、响应速度、复用次数、覆盖人数、协作成本或稳定性。"
   }
 ];
 
 const gapQuestionFallback = [
   {
     id: "resume_ambiguity",
-    question: "如果面试官追问，你最担心哪一段说不清楚？",
+    question: "基于前面的判断，我担心简历里最容易被追问的是模糊边界。你最担心哪一段说不清楚？",
     placeholder: "可能是年限、岗位名称、项目时间、负责范围、数据口径、离职原因、是否主导。写担心点，不用先组织答案。"
   },
   {
     id: "weak_claims",
-    question: "有哪些能力你想让别人看见，但现在证据还不够硬？",
-    placeholder: "比如架构设计、从 0 到 1、增长、管理、AI 落地、复杂协作。我们先标出来，不急着写成优势。"
+    question: "我会先给出简历主叙事，但需要你确认：哪些能力现在还不能写太满？",
+    placeholder: "比如架构设计、从 0 到 1、增长、管理、AI 落地、复杂协作。我们先标出来，证据不足就降级表达，不硬包装。"
   },
   {
     id: "priority_order",
-    question: "如果简历只能让别人记住一个你，你希望他们记住什么？",
-    placeholder: "这会决定项目和关键词的顺序。可以写一个身份、一类能力，或者一个你不想被误读的边界。"
-  },
-  {
-    id: "resume_constraints",
-    question: "还有哪些内容必须谨慎处理？",
+    question: "最后确认公开边界和表达边界：哪些内容必须谨慎处理？",
     placeholder: "比如公司名、项目细节、指标脱敏、目标城市、是否必须一页、是否要中英文、哪些经历不能公开。"
   }
 ];
@@ -111,7 +96,7 @@ const interviewRounds = {
     eyebrow: "第一轮",
     title: "先别急着选方向。",
     description: "这一轮先看你真正想改变什么。很多时候，问题不是“要不要转行”，而是当前工作方式里有些东西已经不适合你了。",
-    cta: "整理这一轮线索",
+    cta: "保存并查看判断",
     stepId: "career_direction",
     next: "insight/direction",
     fallback: "interview/direction",
@@ -123,11 +108,11 @@ const interviewRounds = {
     eyebrow: "第二轮",
     title: "把经历变成证据。",
     description: "这一轮不追求把项目说漂亮，只看哪些经历真的能证明你做成过什么、判断过什么、影响过什么。",
-    cta: "整理项目线索",
+    cta: "保存并查看判断",
     stepId: "project_mining",
     next: "insight/projects",
     fallback: "interview/projects",
-    back: "interview/direction"
+    back: "insight/direction"
   },
   gaps: {
     index: 3,
@@ -135,11 +120,11 @@ const interviewRounds = {
     eyebrow: "第三轮",
     title: "把模糊的地方说清楚。",
     description: "这一轮处理那些容易被追问的地方。不是为了包装，而是避免把不确定的内容写成过度确定的优势。",
-    cta: "形成简历策略",
+    cta: "保存并生成策略",
     stepId: "resume_strategy",
     next: "insight/gaps",
     fallback: "interview/gaps",
-    back: "interview/projects"
+    back: "insight/projects"
   }
 };
 
@@ -189,6 +174,13 @@ const waitingCopy = {
     next: "resume",
     fallback: "resume"
   }
+};
+
+const initialDiagnosisWaiting = {
+  title: "正在阅读你的简历",
+  text: "这一步只基于简历内容做初步判断：先看可能的职业叙事、证据缺口和下一轮应该验证的问题。现在还不会把这些结论写进最终简历。",
+  next: "diagnosis",
+  fallback: "diagnosis"
 };
 
 const waitingTips = [
@@ -253,6 +245,32 @@ function appUrl(url) {
   return `${APP_PREFIX}${url}`;
 }
 
+function feedbackOptionsFor(type, mirror) {
+  const llmOptions = asArray(mirror?.feedbackOptions).map(String).filter(Boolean);
+  if (llmOptions.length >= 3) return llmOptions.slice(0, 5);
+  const fallback = {
+    direction: [
+      "我不是想换方向，更像是想换环境",
+      "我不是缺判断空间，主要是缺成长路径",
+      "我不是预设困难，而是真的不想做这类工作",
+      "这里把我的收入、城市或强度约束看轻了"
+    ],
+    projects: [
+      "我的角色边界没有这里说得这么大",
+      "这些项目不是缺结果，而是结果不方便公开",
+      "更应该突出另一个项目或经历",
+      "这里把执行、推进和决策混在一起了"
+    ],
+    gaps: [
+      "我真正担心的不是表达，而是证据不足",
+      "这里的职业定位还没有说中",
+      "有些数据或项目不能这样公开",
+      "我更想弱化某段经历，而不是补强它"
+    ]
+  };
+  return fallback[type] || fallback.direction;
+}
+
 function parseSavedAnswers(raw) {
   try {
     const parsed = JSON.parse(raw || "{}");
@@ -260,6 +278,86 @@ function parseSavedAnswers(raw) {
   } catch {
     return {};
   }
+}
+
+function savedAnswersList(raw) {
+  try {
+    const parsed = JSON.parse(raw || "{}");
+    return asArray(parsed.answers);
+  } catch {
+    return [];
+  }
+}
+
+function answeredIdsFromState(state) {
+  return new Set(savedAnswersList(state?.intake?.careerDirectionAnswersJson).filter((item) => String(item.answer || "").trim()).map((item) => item.id));
+}
+
+function routeForNav(key, state) {
+  if (key === "landing") return "landing";
+  if (key === "upload") return "upload";
+  if (key === "diagnosis") return state?.llmResults?.career_direction?.result ? "diagnosis" : "upload";
+  if (key === "interview") return "interview/direction";
+  if (key === "projects") return state?.llmResults?.project_mining?.result ? "insight/projects" : "projects";
+  if (key === "resume") return "resume";
+  return key;
+}
+
+function isRouteReadOnly(route, state) {
+  if (route.view !== "interview") return false;
+  const answeredIds = answeredIdsFromState(state);
+  const round = interviewRounds[route.id || "direction"] || interviewRounds.direction;
+  if (route.id === "projects" && state?.llmResults?.project_mining?.result) return true;
+  if (route.id === "gaps" && state?.llmResults?.resume_strategy?.result) return true;
+  const idsByRound = {
+    direction: [
+      ...questionFallback.map((item) => item.id),
+      ...asArray(state?.llmResults?.career_direction?.result?.questions).map((item, index) => item.id || `dynamic_${index + 1}`)
+    ],
+    projects: [
+      ...projectQuestionFallback.map((item) => item.id),
+      ...projectQuestionsFromResult(state?.llmResults?.project_mining?.result).map((item) => item.id)
+    ],
+    gaps: [
+      ...gapQuestionFallback.map((item) => item.id),
+      ...gapQuestionsFromResult(state?.llmResults?.resume_strategy?.result).map((item) => item.id)
+    ]
+  };
+  return asArray(idsByRound[route.id || "direction"]).some((id) => answeredIds.has(id)) || state?.orchestrator?.stage !== "diagnosis_ready" && round.index < 3;
+}
+
+function projectItemsFromResult(result, cards) {
+  const cardItems = cards.map((card) => ({ ...card, source: "card" }));
+  if (cardItems.length) return cardItems;
+  const items = [
+    ...asArray(result?.projectCards),
+    ...asArray(result?.priorityProjects)
+  ]
+    .map((item, index) => ({
+      id: item.id || `result-project-${index + 1}`,
+      name: item.name || item.project || `项目 ${index + 1}`,
+      role: item.role,
+      context: item.context,
+      resumePotential: item.resumePotential || item.why,
+      resultMetrics: item.resultMetrics,
+      processMetrics: item.processMetrics,
+      qualityMetrics: item.qualityMetrics,
+      priority: item.priority || item.resumePriority,
+      missing: item.missing,
+      source: "result"
+    }))
+    .filter((item) => item.name || item.resumePotential || item.context);
+  if (items.length) return items;
+  if (result?.headline) {
+    return [{
+      id: "project-summary",
+      name: "项目证据概览",
+      resumePotential: result.headline,
+      context: result.nextStep || "",
+      source: "result"
+    }];
+  }
+  return [];
 }
 
 function projectSummary(card) {
@@ -273,7 +371,67 @@ function projectSummary(card) {
     .join(" / ");
 }
 
-function StepShell({ view, status, busy, onReset, children }) {
+function readinessOf(result) {
+  return result?.readiness || {};
+}
+
+function nextActionOf(result, fallback = "") {
+  return String(readinessOf(result).recommendedNextAction || fallback);
+}
+
+function shouldAskUser(result) {
+  const readiness = readinessOf(result);
+  if (typeof readiness.shouldAskUser === "boolean") return readiness.shouldAskUser;
+  return asArray(result?.questions).length > 0;
+}
+
+function questionFromLlm(item, index, prefix = "dynamic") {
+  if (typeof item === "string") {
+    return { id: `${prefix}_${index + 1}`, question: item, placeholder: "写事实和真实判断即可，不需要自己包装。" };
+  }
+  return {
+    id: item?.id || `${prefix}_${index + 1}`,
+    question: item?.question || item?.text || item?.why || "",
+    placeholder: item?.why || item?.placeholder || "写事实和真实判断即可，不需要自己包装。"
+  };
+}
+
+function projectQuestionsFromResult(result) {
+  const direct = asArray(result?.questions).map((item, index) => questionFromLlm(item, index, "project_dynamic")).filter((item) => item.question);
+  if (direct.length) return direct.slice(0, 3);
+  const fromPriority = asArray(result?.priorityProjects)
+    .flatMap((project, projectIndex) =>
+      asArray(project?.questions).map((question, index) => ({
+        id: `project_${projectIndex + 1}_question_${index + 1}`,
+        question,
+        placeholder: `${project?.name || "这个项目"}：补事实、角色边界、前后变化或指标。`
+      }))
+    )
+    .filter((item) => item.question);
+  const life = asArray(result?.lifeExperienceQuestions)
+    .map((question, index) => ({
+      id: `life_experience_${index + 1}`,
+      question,
+      placeholder: "可以写工作外但和目标岗位相关的长期经历、作品、社区、游戏、开源或 AI 工具实践。"
+    }))
+    .filter((item) => item.question);
+  return [...fromPriority, ...life].slice(0, 3);
+}
+
+function gapQuestionsFromResult(result) {
+  const direct = asArray(result?.questions).map((item, index) => questionFromLlm(item, index, "gap_dynamic")).filter((item) => item.question);
+  if (direct.length) return direct.slice(0, 3);
+  return asArray(result?.pendingQuestions)
+    .map((question, index) => ({
+      id: `pending_gap_${index + 1}`,
+      question,
+      placeholder: "确认口径即可。无法确认就写不能公开、记不清、只能脱敏或需要降级表达。"
+    }))
+    .filter((item) => item.question)
+    .slice(0, 3);
+}
+
+function StepShell({ view, status, busy, onReset, state, children }) {
   return (
     <main className="app-shell">
       <header className="top-nav">
@@ -285,7 +443,8 @@ function StepShell({ view, status, busy, onReset, children }) {
             <button
               key={item.key}
               className={item.key === view ? "active" : ""}
-              onClick={() => goTo(item.key)}
+              type="button"
+              onClick={() => goPath(routeForNav(item.key, state))}
             >
               {item.label}
             </button>
@@ -341,6 +500,32 @@ function startWaiting(stepId, overrides = {}) {
   goTo("waiting", stepId);
 }
 
+function isDirectionInterviewStarted(state) {
+  const raw = state?.intake?.careerDirectionAnswersJson;
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    return asArray(parsed.answers).some((item) => String(item.answer || "").trim());
+  } catch {
+    return String(raw).trim().length > 0;
+  }
+}
+
+function isProjectInterviewStarted(state) {
+  const raw = state?.intake?.careerDirectionAnswersJson;
+  if (!raw) return false;
+  try {
+    const parsed = JSON.parse(raw);
+    const projectIds = new Set([
+      ...projectQuestionFallback.map((item) => item.id),
+      ...projectQuestionsFromResult(state?.llmResults?.project_mining?.result).map((item) => item.id)
+    ]);
+    return asArray(parsed.answers).some((item) => projectIds.has(item.id) && String(item.answer || "").trim());
+  } catch {
+    return false;
+  }
+}
+
 function readWaiting(stepId) {
   try {
     const context = JSON.parse(window.sessionStorage.getItem("career-web-waiting") || "{}");
@@ -375,12 +560,11 @@ function WaitingPage({ stepId, busy, onRefresh }) {
   const [jobError, setJobError] = useState("");
   const pollSeconds = context.pollSeconds || 5;
   const activeTip = elapsed >= 10 ? waitingTips[Math.floor((elapsed - 10) / 8) % waitingTips.length] : "";
-  const progressWidth = Math.min(92, 22 + elapsed * (elapsed < 18 ? 3.4 : 1.2));
   const waitMessage =
     elapsed >= 35
       ? "信息有点多，你可以先干些别的。页面会继续等待结果，完成后会自动进入下一步。"
-      : elapsed >= 18
-        ? "马上就好，正在把你的回答和简历放在一起看，避免太早下结论。"
+    : elapsed >= 18
+        ? "马上就好，正在把材料放在一起看，避免太早下结论。"
         : "已经开始整理了，完成后会自动进入下一步。";
 
   useEffect(() => {
@@ -429,7 +613,7 @@ function WaitingPage({ stepId, busy, onRefresh }) {
         <h1>{context.title || "正在处理你的请求"}</h1>
         <p>{context.text || "系统正在刷新状态，完成后会自动进入下一步。"}</p>
         <div className="waiting-progress" aria-hidden="true">
-          <span style={{ width: `${progressWidth}%` }} />
+          <span />
         </div>
         <p className="waiting-reassurance" aria-live="polite">{waitMessage}</p>
         {activeTip && <div className="waiting-tip">{activeTip}</div>}
@@ -502,7 +686,7 @@ function UploadPage({ selectedFile, setSelectedFile, resumeMeta, busy, onUpload 
   );
 }
 
-function DiagnosisPage({ result, resumeMeta, busy, onRun }) {
+function DiagnosisPage({ result, resumeMeta, busy, onRun, onAskDirection, onRunProjects, onRunStrategy }) {
   if (!resumeMeta) return <GuardPage title="还没有简历" text="先上传简历，才能生成初步职业诊断。" target="upload" />;
 
   if (!result) {
@@ -527,12 +711,22 @@ function DiagnosisPage({ result, resumeMeta, busy, onRun }) {
 
   const narratives = asArray(result.narratives).slice(0, 3);
   const risks = asArray(result.risks).slice(0, 4);
+  const nextAction = nextActionOf(result, shouldAskUser(result) ? "ask_direction_questions" : "run_project_mining");
+  const nextConfig = (() => {
+    if (nextAction === "run_resume_strategy" || nextAction === "render_resume") {
+      return { label: "直接生成简历策略", onClick: onRunStrategy };
+    }
+    if (nextAction === "run_project_mining") {
+      return { label: "直接提炼项目证据", onClick: onRunProjects };
+    }
+    return { label: "开始第一轮访谈", onClick: onAskDirection };
+  })();
   return (
     <section className="solo-page">
       <div className="page-head">
         <p className="eyebrow">Step 02</p>
-        <h1>先看初步判断。</h1>
-        <p>这些是“待验证假设”，不是最终职业定位。下一步要通过访谈确认。</p>
+        <h1>我们从你简历中发现的事。</h1>
+        <p>这些只来自简历文本，是初步线索，不是最终职业定位。下一步才会通过第一轮访谈确认。</p>
       </div>
       <div className="diagnosis-layout">
         <article className="hero-card">
@@ -556,21 +750,28 @@ function DiagnosisPage({ result, resumeMeta, busy, onRun }) {
           <p>{risks.join(" / ")}</p>
         </div>
       )}
+      {result.readiness?.reason && (
+        <div className="note-strip">
+          <strong>{shouldAskUser(result) ? "为什么还要问" : "为什么可以跳过问答"}</strong>
+          <p>{result.readiness.reason}</p>
+        </div>
+      )}
       <div className="step-actions end">
         <GhostButton onClick={() => goTo("upload")}>返回简历</GhostButton>
-        <PrimaryButton onClick={() => goTo("interview", "direction")}>继续深访</PrimaryButton>
+        <PrimaryButton onClick={nextConfig.onClick} disabled={busy}>{nextConfig.label}</PrimaryButton>
       </div>
     </section>
   );
 }
 
-function InterviewPage({ round, questions, answers, setAnswers, busy, onSave }) {
+function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, readOnly }) {
   return (
     <section className="solo-page compact">
       <div className="page-head">
         <p className="eyebrow">{round.eyebrow}</p>
         <h1>{round.title}</h1>
         <p>{round.description}</p>
+        {readOnly && <p className="readonly-note">这一轮已经提交。你可以回看问题和答案，但这里不会再修改，避免重复消耗模型和让问题漂移。</p>}
         <div className="round-progress">
           {Array.from({ length: round.total }).map((_, index) => (
             <span key={index} className={index + 1 <= round.index ? "active" : ""} />
@@ -586,23 +787,26 @@ function InterviewPage({ round, questions, answers, setAnswers, busy, onSave }) 
             <textarea
               value={answers[item.id] || ""}
               placeholder={item.placeholder || "写真实想法即可。"}
+              readOnly={readOnly}
               onChange={(event) => setAnswers((current) => ({ ...current, [item.id]: event.target.value }))}
             />
           </label>
         ))}
       </div>
-      <div className="step-actions end">
-        <GhostButton onClick={() => goPath(round.back)}>返回</GhostButton>
-        <PrimaryButton icon={busy ? Loader2 : BadgeCheck} onClick={onSave} disabled={busy}>
-          {round.cta}
-        </PrimaryButton>
-      </div>
+      {!readOnly && (
+        <div className="step-actions end">
+          <PrimaryButton icon={busy ? Loader2 : BadgeCheck} onClick={onSave} disabled={busy}>
+            {round.cta}
+          </PrimaryButton>
+        </div>
+      )}
     </section>
   );
 }
 
-function ProjectsPage({ result, cards, busy, onMine, onSave }) {
-  if (!result && !cards.length) {
+function ProjectsPage({ result, cards, busy, onMine, onSave, onResume }) {
+  const items = projectItemsFromResult(result, cards);
+  if (!result && !items.length) {
     return (
       <section className="step-page projects-page">
         <div className="step-copy">
@@ -630,22 +834,24 @@ function ProjectsPage({ result, cards, busy, onMine, onSave }) {
         <p>每张项目卡都会影响后面的简历、JD 策略和个人网站。先确认事实，再生成表达。</p>
       </div>
       <div className="project-list">
-        {cards.map((card) => (
-          <article key={card.id} className="project-row">
+        {items.map((card) => (
+          <article key={card.id || card.name} className="project-row">
             <div>
               <strong>{card.name || "未命名项目"}</strong>
-              <p>{projectSummary(card) || card.context || "需要继续补充证据。"}</p>
+              <p>{projectSummary(card) || card.resumePotential || card.context || "需要继续补充证据。"}</p>
+              {asArray(card.missing).length > 0 && <p className="muted-line">待补：{asArray(card.missing).join(" / ")}</p>}
             </div>
             <div className="row-actions">
               {card.confirmed && <span className="pill">已确认</span>}
-              <button onClick={() => goTo("project", card.id)}>编辑</button>
+              {card.priority && <span className="pill">{card.priority}</span>}
+              {card.source === "card" && <button onClick={() => goTo("project", card.id)}>编辑</button>}
             </div>
           </article>
         ))}
       </div>
       <div className="step-actions end">
-        <GhostButton icon={Save} onClick={onSave} disabled={busy}>保存项目卡</GhostButton>
-        <PrimaryButton onClick={() => goTo("resume")}>生成简历策略</PrimaryButton>
+        {cards.length > 0 && <GhostButton icon={Save} onClick={onSave} disabled={busy}>保存项目卡</GhostButton>}
+        <PrimaryButton onClick={onResume}>生成简历策略</PrimaryButton>
       </div>
     </section>
   );
@@ -679,13 +885,74 @@ function buildMirror(type, careerResult, projectResult, strategyResult) {
   };
 }
 
-function MirrorCard({ mirror, nextText, onBack, onNext }) {
+function buildAdvice(type, careerResult, projectResult, strategyResult) {
+  const result = type === "direction" ? careerResult : type === "projects" ? projectResult : strategyResult;
+  if (result?.adviceCard) return result.adviceCard;
+  if (type === "direction") {
+    return {
+      recommendation: careerResult?.recommendedTrack || "先不要急着把自己定义成转行或不转行。更稳的做法是先验证：当前职业轨道能否通过换业务、换团队或换工作方式解决主要问题。",
+      why: careerResult?.judgment || "现在能看到一些方向信号，但还缺项目证据来证明它不是短期焦虑或对当前环境的反应。",
+      whatToConfirm: ["继续当前职业轨道是否仍有可接受版本", "真正想靠近的是岗位名称还是工作方式", "哪些反感来自职业本身，哪些来自环境"],
+      whatNotToDo: ["现在不急着重写简历标题", "不把兴趣直接写成能力", "不把逃离当前状态误判为长期方向"]
+    };
+  }
+  if (type === "projects") {
+    return {
+      recommendation: projectResult?.headline || "接下来优先保留能证明判断、取舍、推进和结果的项目。只有参与但缺少个人边界的经历，先降级为辅助素材。",
+      why: "简历的说服力不是来自项目数量，而是来自可信证据。角色边界和指标口径越清楚，后面的表达越不容易翻车。",
+      whatToConfirm: ["每个重点项目里你具体负责到哪一步", "有没有结果指标、过程指标或质量指标", "是否有和目标方向相关的非正式经历"],
+      whatNotToDo: ["不把参与写成主导", "不为了好看编数字", "不把所有项目平均用力"]
+    };
+  }
+  return {
+    recommendation: strategyResult?.headline || "生成简历前，先确认主叙事、关键词顺序和不能写太满的地方。简历应该先让别人记住一个清晰的你。",
+    why: "如果策略不稳定，简历会变成经历堆叠；如果边界不清楚，面试时容易被追问到失真。",
+    whatToConfirm: ["顶部定位是否像你本人", "关键词顺序是否符合目标方向", "是否有数据、项目或公司信息需要脱敏"],
+    whatNotToDo: ["不强行压成一页导致不可读", "不把待验证假设写成确定能力", "不把内部策略字段写进简历正文"]
+  };
+}
+
+function AdviceCard({ advice }) {
+  if (!advice) return null;
+  const confirms = asArray(advice.whatToConfirm).slice(0, 3);
+  const avoids = asArray(advice.whatNotToDo).slice(0, 3);
+  return (
+    <article className="advice-card">
+      <p className="eyebrow">我建议先这样处理</p>
+      <h2>{advice.recommendation}</h2>
+      {advice.why && <p className="advice-reason">{advice.why}</p>}
+      <div className="advice-columns">
+        {confirms.length > 0 && (
+          <section>
+            <span>你只需要确认这些</span>
+            {confirms.map((item) => <p key={item}>{item}</p>)}
+          </section>
+        )}
+        {avoids.length > 0 && (
+          <section>
+            <span>现在先不要做这些</span>
+            {avoids.map((item) => <p key={item}>{item}</p>)}
+          </section>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function MirrorCard({ type, mirror, nextText, onNext, onFeedback, title = "这一轮留下来的线索" }) {
   const [feedback, setFeedback] = useState("");
+  const [detail, setDetail] = useState("");
+  const [selectedCorrection, setSelectedCorrection] = useState("");
+  const correctionOptions = feedbackOptionsFor(type, mirror);
+  const saveFeedback = (choice, extra = "") => {
+    setFeedback(choice);
+    onFeedback?.({ type, choice, detail: extra });
+  };
   return (
     <>
       <article className="mirror-card">
-        <p className="eyebrow">这一轮留下来的线索</p>
-        <h2>刚才这段里，最重要的可能是：</h2>
+        <p className="eyebrow">{title}</p>
+        <h2>这里有一个值得继续验证的信号</h2>
         <p className="mirror-hit">{mirror.hit}</p>
         <div className="mirror-sections">
           <section>
@@ -703,7 +970,14 @@ function MirrorCard({ mirror, nextText, onBack, onNext }) {
         </div>
         <div className="mirror-feedback">
           {["这很像我", "不完全是", "我想补充"].map((item) => (
-            <button key={item} className={feedback === item ? "active" : ""} onClick={() => setFeedback(item)}>
+            <button
+              key={item}
+              className={feedback === item ? "active" : ""}
+              onClick={() => {
+                if (item === "这很像我") saveFeedback(item);
+                else setFeedback(item);
+              }}
+            >
               {item}
             </button>
           ))}
@@ -711,10 +985,36 @@ function MirrorCard({ mirror, nextText, onBack, onNext }) {
         {feedback === "不完全是" && (
           <div className="feedback-panel">
             <strong>哪里不准确？</strong>
-            <button>不是方向问题，更像环境问题</button>
-            <button>不是想转行，只是想提高收入</button>
-            <button>不是缺判断空间，是缺成长路径</button>
-            <button>不是讨厌执行，是讨厌没有反馈</button>
+            {correctionOptions.map((option) => (
+              <button
+                key={option}
+                className={selectedCorrection === option ? "active" : ""}
+                onClick={() => {
+                  setSelectedCorrection(option);
+                  onFeedback?.({ type, choice: "不完全是", detail: option });
+                }}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+        )}
+        {feedback === "我想补充" && (
+          <div className="feedback-panel">
+            <strong>补充一句你觉得更准确的说法</strong>
+            <textarea
+              value={detail}
+              placeholder="比如：我不是想转行，而是不想继续做低自主权的执行工作。"
+              onChange={(event) => setDetail(event.target.value)}
+              onBlur={() => detail.trim() && onFeedback?.({ type, choice: "我想补充", detail })}
+            />
+            <button
+              className={detail.trim() ? "active" : ""}
+              disabled={!detail.trim()}
+              onClick={() => onFeedback?.({ type, choice: "我想补充", detail })}
+            >
+              保存补充
+            </button>
           </div>
         )}
       </article>
@@ -723,25 +1023,50 @@ function MirrorCard({ mirror, nextText, onBack, onNext }) {
         <strong>{mirror.nextValidation}</strong>
       </div>
       <div className="step-actions end">
-        <GhostButton onClick={onBack}>回去调整</GhostButton>
         <PrimaryButton onClick={onNext}>{nextText}</PrimaryButton>
       </div>
     </>
   );
 }
 
-function InsightPage({ type, careerResult, projectResult, strategyResult, projectCards }) {
+function InsightPage({
+  type,
+  careerResult,
+  projectResult,
+  strategyResult,
+  projectCards,
+  onMirrorFeedback,
+  directionInterviewStarted,
+  projectInterviewStarted,
+  onRunProjects,
+  onRunStrategy,
+  onRenderResume
+}) {
   const mirror = buildMirror(type, careerResult, projectResult, strategyResult);
+  const advice = buildAdvice(type, careerResult, projectResult, strategyResult);
   if (type === "direction") {
+    const resumeOnly = !directionInterviewStarted;
     const narratives = asArray(careerResult?.narratives).slice(0, 3);
+    const action = nextActionOf(careerResult, resumeOnly ? "ask_direction_questions" : "run_project_mining");
+    const nextConfig = (() => {
+      if (action === "ask_direction_questions") return { label: resumeOnly ? "开始第一轮访谈" : "继续确认职业方向", onClick: () => goTo("interview", "direction") };
+      if (resumeOnly && action === "ask_direction_questions") return { label: "开始第一轮访谈", onClick: () => goTo("interview", "direction") };
+      if (action === "run_resume_strategy" || action === "render_resume") return { label: "直接生成简历策略", onClick: onRunStrategy };
+      if (action === "ask_project_questions") return { label: "进入第二轮访谈", onClick: onRunProjects };
+      if (action === "run_project_mining" || !resumeOnly) return { label: "判断项目证据", onClick: onRunProjects };
+      return { label: "开始第一轮访谈", onClick: () => goTo("interview", "direction") };
+    })();
     return (
       <section className="solo-page">
         <MirrorCard
+          type={type}
           mirror={mirror}
-          nextText="继续看项目证据"
-          onBack={() => goTo("interview", "direction")}
-          onNext={() => goTo("interview", "projects")}
+          title={resumeOnly ? "我们从你简历中发现的事" : "这一轮留下来的线索"}
+          nextText={nextConfig.label}
+          onNext={nextConfig.onClick}
+          onFeedback={onMirrorFeedback}
         />
+        <AdviceCard advice={advice} />
         <div className="insight-grid">
           <div className="stack-list">
             {narratives.map((item, index) => (
@@ -765,14 +1090,21 @@ function InsightPage({ type, careerResult, projectResult, strategyResult, projec
   if (type === "projects") {
     const projects = asArray(projectResult?.priorityProjects).slice(0, 4);
     const metricPlan = asArray(projectResult?.metricPlan).slice(0, 3);
+    const action = nextActionOf(projectResult, shouldAskUser(projectResult) ? "ask_project_questions" : "run_resume_strategy");
+    const nextConfig = (() => {
+      if (action === "ask_project_questions") return { label: projectInterviewStarted ? "继续补充项目事实" : "开始第二轮访谈", onClick: () => goTo("interview", "projects") };
+      return { label: "判断简历缺口", onClick: onRunStrategy };
+    })();
     return (
       <section className="solo-page">
         <MirrorCard
+          type={type}
           mirror={mirror}
-          nextText="继续补齐简历缺口"
-          onBack={() => goTo("interview", "projects")}
-          onNext={() => goTo("interview", "gaps")}
+          nextText={nextConfig.label}
+          onNext={nextConfig.onClick}
+          onFeedback={onMirrorFeedback}
         />
+        <AdviceCard advice={advice} />
         <div className="project-list">
           {(projects.length ? projects : projectCards).slice(0, 4).map((item, index) => (
             <article className="project-row" key={`${item.name || item.id || index}`}>
@@ -794,14 +1126,21 @@ function InsightPage({ type, careerResult, projectResult, strategyResult, projec
     );
   }
 
+  const gapAction = nextActionOf(strategyResult, shouldAskUser(strategyResult) ? "ask_resume_gap_questions" : "render_resume");
+  const gapNextConfig = (() => {
+    if (gapAction === "ask_resume_gap_questions") return { label: "开始第三轮访谈", onClick: () => goTo("interview", "gaps") };
+    return { label: "查看简历策略", onClick: onRenderResume || (() => goTo("resume")) };
+  })();
   return (
     <section className="solo-page">
       <MirrorCard
+        type={type}
         mirror={mirror}
-        nextText="查看简历策略"
-        onBack={() => goTo("interview", "gaps")}
-        onNext={() => goTo("resume")}
+        nextText={gapNextConfig.label}
+        onNext={gapNextConfig.onClick}
+        onFeedback={onMirrorFeedback}
       />
+      <AdviceCard advice={advice} />
       <div className="deliverable-grid">
         <article className="hero-card">
           <FileText size={24} />
@@ -910,7 +1249,7 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
         {artifacts?.renderReport && <a href={appUrl(artifacts.renderReport.url)} target="_blank" rel="noreferrer">查看检查报告</a>}
       </div>
       <div className="step-actions end">
-        <GhostButton onClick={() => goTo("projects")}>返回项目</GhostButton>
+        <GhostButton onClick={() => goTo("insight", "projects")}>查看项目证据</GhostButton>
         <PrimaryButton icon={Target} onClick={() => goTo("jd")}>可选：分析 JD</PrimaryButton>
       </div>
     </section>
@@ -1030,6 +1369,9 @@ function App() {
     if ("scrollRestoration" in window.history) {
       window.history.scrollRestoration = "manual";
     }
+    if (route.view === "waiting" || route.view === "insight") {
+      setStatus("");
+    }
     scrollPageToTop();
   }, [route.view, route.id]);
 
@@ -1060,24 +1402,22 @@ function App() {
   const strategyResult = state?.llmResults?.resume_strategy?.result || null;
   const renderResult = state?.llmResults?.resume_render?.result || null;
   const jdResult = state?.llmResults?.jd_fit?.result || null;
+  const directionInterviewStarted = isDirectionInterviewStarted(state);
+  const projectInterviewStarted = isProjectInterviewStarted(state);
   const activeRoundKey = route.view === "interview" ? route.id || "direction" : "direction";
   const activeRound = interviewRounds[activeRoundKey] || interviewRounds.direction;
 
   const interviewQuestions = useMemo(() => {
     if (activeRoundKey === "projects") {
-      return projectQuestionFallback;
+      const dynamic = projectQuestionsFromResult(projectResult);
+      return dynamic.length ? dynamic : projectQuestionFallback;
     }
     if (activeRoundKey === "gaps") {
-      const metricQuestions = asArray(projectResult?.metricPlan)
-        .slice(0, 3)
-        .map((item, index) => ({
-          id: `metric_gap_${index + 1}`,
-          question: `${item.project || `项目 ${index + 1}`} 还缺哪些更可信的指标？`,
-          placeholder: "优先补结果指标；如果没有结果指标，补过程指标、质量指标、规模或复杂度。"
-        }));
-      return metricQuestions.length ? [...metricQuestions, ...gapQuestionFallback] : gapQuestionFallback;
+      const dynamic = gapQuestionsFromResult(strategyResult);
+      return dynamic.length ? dynamic : gapQuestionFallback;
     }
     const dynamic = asArray(careerResult?.questions)
+      .slice(0, 3)
       .map((item, index) => ({
         id: item.id || `dynamic_${index + 1}`,
         question: item.question || item,
@@ -1098,6 +1438,13 @@ function App() {
       : Boolean(state?.llmResults?.[route.id]?.result);
     if (hasResult && context?.next) goPath(context.next);
   }, [route.view, route.id, state, busy]);
+
+  useEffect(() => {
+    if (!state || busy) return;
+    if (route.view === "interview" && route.id === "projects" && !directionInterviewStarted && !projectResult) {
+      goTo("interview", "direction");
+    }
+  }, [route.view, route.id, state, busy, directionInterviewStarted, careerResult, projectResult]);
 
   function gate(stepId) {
     return state?.orchestrator?.actions?.[stepId] || { allowed: true, reason: "" };
@@ -1147,7 +1494,7 @@ function App() {
     }));
   }
 
-  async function runStep(stepId, nextView, fallbackView) {
+  async function runStep(stepId, nextView, fallbackView, waitingOverrides = {}) {
     const actionGate = gate(stepId);
     if (!actionGate.allowed) {
       setStatus(actionGate.reason);
@@ -1170,7 +1517,8 @@ function App() {
       startWaiting(stepId, {
         jobId: response.job.id,
         next: nextView || waitingCopy[stepId]?.next,
-        fallback: fallbackView || waitingCopy[stepId]?.fallback
+        fallback: fallbackView || waitingCopy[stepId]?.fallback,
+        ...waitingOverrides
       });
     } catch (error) {
       setStatus(error.message);
@@ -1191,6 +1539,7 @@ function App() {
         })
       });
       const response = await api(`/jobs/${activeRound.stepId}`, { method: "POST", body: JSON.stringify({}) });
+      setStatus("");
       startWaiting(activeRound.stepId, {
         jobId: response.job.id,
         next: activeRound.next,
@@ -1223,6 +1572,17 @@ function App() {
     }
   }
 
+  async function saveMirrorFeedback(payload) {
+    try {
+      await api("/intake/mirror-feedback", {
+        method: "POST",
+        body: JSON.stringify(payload)
+      });
+    } catch (error) {
+      setStatus(`反馈暂时没有保存：${error.message}`);
+    }
+  }
+
   function patchProjectCard(patch) {
     setProjectDrafts((current) =>
       current.map((item) => (item.id === route.id ? { ...item, ...patch, updatedAt: new Date().toISOString() } : item))
@@ -1241,7 +1601,7 @@ function App() {
   if (route.view === "landing") return <LandingPage />;
 
   return (
-    <StepShell view={route.view} status={status} busy={busy} onReset={resetFlow}>
+    <StepShell view={route.view} status={status} busy={busy} onReset={resetFlow} state={state}>
       {route.view === "upload" && (
         <UploadPage
           selectedFile={selectedFile}
@@ -1256,7 +1616,10 @@ function App() {
           result={careerResult}
           resumeMeta={state?.resumeMeta}
           busy={busy}
-          onRun={() => runStep("career_direction", "diagnosis", "diagnosis")}
+          onRun={() => runStep("career_direction", "diagnosis", "diagnosis", initialDiagnosisWaiting)}
+          onAskDirection={() => goTo("interview", "direction")}
+          onRunProjects={() => runStep("project_mining", "insight/projects", "diagnosis")}
+          onRunStrategy={() => runStep("resume_strategy", "insight/gaps", "diagnosis")}
         />
       )}
       {route.view === "interview" && (
@@ -1267,6 +1630,7 @@ function App() {
           setAnswers={setAnswers}
           busy={busy}
           onSave={saveInterviewRound}
+          readOnly={isRouteReadOnly(route, state)}
         />
       )}
       {route.view === "projects" && (
@@ -1276,6 +1640,7 @@ function App() {
           busy={busy}
           onMine={() => runStep("project_mining", "insight/projects", "projects")}
           onSave={() => saveProjects()}
+          onResume={() => runStep("resume_strategy", "insight/gaps", "projects")}
         />
       )}
       {route.view === "project" && (
@@ -1312,6 +1677,12 @@ function App() {
           projectResult={projectResult}
           strategyResult={strategyResult}
           projectCards={projectDrafts}
+          onMirrorFeedback={saveMirrorFeedback}
+          directionInterviewStarted={directionInterviewStarted}
+          projectInterviewStarted={projectInterviewStarted}
+          onRunProjects={() => runStep("project_mining", "insight/projects", "insight/direction")}
+          onRunStrategy={() => runStep("resume_strategy", "insight/gaps", "insight/projects")}
+          onRenderResume={() => goTo("resume")}
         />
       )}
       {route.view === "waiting" && <WaitingPage stepId={route.id} busy={busy} onRefresh={loadState} />}

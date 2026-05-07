@@ -9,7 +9,8 @@
     "dev:server": "node server/index.js",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "start": "NODE_ENV=production HOST=${HOST:-127.0.0.1} PORT=${PORT:-5174} node server/index.js"
+    "start": "NODE_ENV=production HOST=${HOST:-127.0.0.1} PORT=${PORT:-5174} node server/index.js",
+    "test:smoke": "node scripts/smoke-test-flow.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.1.2",
