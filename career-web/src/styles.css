@@ -680,23 +680,58 @@ textarea[readonly] {
 
 .advice-card {
   display: grid;
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.55fr);
+  gap: 18px;
+  align-items: start;
   margin: 0 0 18px;
-  padding: 24px;
+  padding: 20px;
   border-radius: 14px;
 }
 
 .advice-card h2 {
   margin: 0;
   color: var(--ink-strong);
-  font-size: 30px;
-  line-height: 1.28;
+  font-size: 22px;
+  line-height: 1.38;
+}
+
+.advice-main {
+  display: grid;
+  gap: 9px;
+  min-width: 0;
 }
 
 .advice-reason {
   margin: 0;
   color: var(--muted);
-  line-height: 1.75;
+  line-height: 1.65;
+}
+
+.advice-confirm-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  border-radius: 10px;
+  background: rgba(35, 191, 174, 0.07);
+}
+
+.advice-confirm-list span {
+  color: var(--teal);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.advice-confirm-list div {
+  display: grid;
+  gap: 8px;
+}
+
+.advice-confirm-list p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.55;
 }
 
 .advice-columns {
@@ -719,6 +754,12 @@ textarea[readonly] {
   margin: 8px 0 0;
   color: var(--muted);
   line-height: 1.65;
+}
+
+.insight-action {
+  display: flex;
+  justify-content: flex-end;
+  margin: 22px 0 0;
 }
 
 .diagnosis-layout {
@@ -1058,6 +1099,7 @@ select:focus {
   .diagnosis-layout,
   .insight-grid,
   .mirror-sections,
+  .advice-card,
   .advice-columns,
   .deliverable-grid,
   .jd-layout {
@@ -1104,7 +1146,8 @@ select:focus {
 
   .step-actions,
   .step-actions.end,
-  .landing-actions {
+  .landing-actions,
+  .insight-action {
     align-items: stretch;
     flex-direction: column;
   }
@@ -1185,7 +1228,9 @@ select:focus {
   .hero-card h2,
   .hero-card p,
   .thin-card p {
-    width: calc(100vw - 72px);
-    word-break: break-all;
+    width: auto;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
 }

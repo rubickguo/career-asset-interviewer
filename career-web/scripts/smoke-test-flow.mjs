@@ -63,7 +63,8 @@ async function main() {
   assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化"], "App source");
   assert.match(appSource, /这里有一个值得继续验证的信号/);
   assert.match(appSource, /按“前后对比”说清楚/);
-  assert.match(appSource, /我建议先这样处理/);
+  assert.match(appSource, /下一步怎么处理/);
+  assert.match(appSource, /insight-action/);
   assert.match(appSource, /我们从你简历中发现的事/);
   assert.match(appSource, /正在阅读你的简历/);
   assert.match(appSource, /开始第一轮访谈/);
