@@ -1819,22 +1819,29 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender, interview }) {
   const blocksRender = strategy ? strategyBlocksRender(strategy, interview) : false;
+  const previewReady = Boolean(artifacts?.resumeHtml);
   const strategySummary = strategy
     ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 118)
     : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
   const strategyKeywords = strategy ? asArray(strategy.keywordOrder).slice(0, 5) : [];
-  const stateLabel = !strategy ? "等待策略" : artifacts?.resumeHtml ? "预览已生成" : blocksRender ? "需要补证据" : "可以生成预览";
+  const stateLabel = !strategy ? "等待策略" : previewReady ? "预览已生成" : blocksRender ? "需要补证据" : "可以生成预览";
   const stateCopy = !strategy
     ? "先用前面的画像和项目证据生成写作策略，再进入预览。"
-    : artifacts?.resumeHtml
-      ? "HTML 和 PDF 已生成，可以打开文件检查版式。"
+    : previewReady
+      ? "先打开 HTML 看内容和排版；确认没问题后，再下载或使用 PDF。"
       : blocksRender
         ? "还有少量会影响可信度的证据需要确认。具体问题放到下一页处理，这里不展开。"
         : renderResult?.findings?.length
           ? renderResult.findings.join(" / ")
           : "策略已经稳定，可以生成 HTML 预览和 PDF。";
-  const primaryAction = !strategy ? onStrategy : blocksRender ? () => goTo("interview", "gaps") : onRender;
-  const primaryLabel = !strategy ? "分析简历策略" : blocksRender ? "去补充简历证据" : artifacts?.resumeHtml ? "重新生成预览和 PDF" : "生成预览和 PDF";
+  const primaryAction = !strategy
+    ? onStrategy
+    : blocksRender
+      ? () => goTo("interview", "gaps")
+      : previewReady
+        ? () => window.open(appUrl(artifacts.resumeHtml.url), "_blank", "noreferrer")
+        : onRender;
+  const primaryLabel = !strategy ? "生成简历策略" : blocksRender ? "补充关键证据" : previewReady ? "打开 HTML 预览" : "生成预览和 PDF";
   return (
     <section className="solo-page resume-workbench">
       <div className="page-head">
@@ -1857,23 +1864,18 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
         <article className="resume-action-panel">
           <div>
             <span className={`resume-state ${blocksRender ? "needs-work" : artifacts?.resumeHtml ? "done" : "ready"}`}>{stateLabel}</span>
-            <h2>{!strategy ? "下一步先建立写作策略" : blocksRender ? "先补完最后的可信证据" : "现在可以生成简历预览"}</h2>
+            <h2>{!strategy ? "先建立写作策略" : blocksRender ? "先补关键证据" : previewReady ? "预览已经生成" : "可以生成预览"}</h2>
             <p>{stateCopy}</p>
           </div>
           <PrimaryButton icon={busy ? Loader2 : blocksRender ? FileText : Globe2} onClick={primaryAction} disabled={busy}>
             {primaryLabel}
           </PrimaryButton>
-          {strategy && (
-            <button className="text-action" type="button" onClick={onStrategy} disabled={busy}>
-              重新分析简历策略
-            </button>
-          )}
+          <div className="resume-secondary-actions">
+            {previewReady && artifacts?.resumePdf && <a href={appUrl(artifacts.resumePdf.url)} target="_blank" rel="noreferrer">打开 PDF</a>}
+            {previewReady && artifacts?.renderReport && <a href={appUrl(artifacts.renderReport.url)} target="_blank" rel="noreferrer">检查报告</a>}
+            {strategy && <button type="button" onClick={previewReady || !blocksRender ? onRender : onStrategy} disabled={busy}>{previewReady ? "重新生成预览" : "重新分析策略"}</button>}
+          </div>
         </article>
-      </div>
-      <div className="artifact-links">
-        {artifacts?.resumeHtml && <a href={appUrl(artifacts.resumeHtml.url)} target="_blank" rel="noreferrer">打开 HTML 预览</a>}
-        {artifacts?.resumePdf && <a href={appUrl(artifacts.resumePdf.url)} target="_blank" rel="noreferrer">打开 PDF</a>}
-        {artifacts?.renderReport && <a href={appUrl(artifacts.renderReport.url)} target="_blank" rel="noreferrer">查看检查报告</a>}
       </div>
       <div className="step-actions end">
         <GhostButton onClick={() => goTo("insight", "projects")}>查看项目证据</GhostButton>
