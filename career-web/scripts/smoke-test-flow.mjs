@@ -167,6 +167,8 @@ async function main() {
   assert.match(rendererSource, /headline/);
   assert.match(rendererSource, /isKeywordLikeText/);
   assert.match(rendererSource, /summaryItemsFromPublicResume/);
+  assert.match(rendererSource, /renderTagGrid/);
+  assert.match(rendererSource, /tag-grid/);
   assert.match(rendererSource, /extractOriginalWorkEntries/);
   assert.match(rendererSource, /mergeWorkEntries/);
   assert.match(rendererSource, /renderSectionTitle\("核心能力"\)/);
@@ -662,6 +664,7 @@ async function main() {
   assert.match(resumeHtml.text, /class="page"/);
   assert.match(resumeHtml.text, /class="header-top"/);
   assert.match(resumeHtml.text, /class="headline"/);
+  assert.match(resumeHtml.text, /class="tag-grid"/);
   assert.match(resumeHtml.text, /个人简介/);
   assert.match(resumeHtml.text, /重点项目/);
   assert.match(resumeHtml.text, /个人作品/);

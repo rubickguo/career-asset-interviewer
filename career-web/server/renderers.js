@@ -34,6 +34,7 @@ function cleanBulletText(value) {
 function isKeywordLikeText(value) {
   const text = cleanBulletText(value);
   if (!text) return true;
+  if (/[\/｜|]/.test(text)) return true;
   if (text.length <= 12) return true;
   if (!/[，。；;,.]|从|到|推动|负责|主导|参与|设计|搭建|优化|提升|降低|覆盖|增长|减少|实现|沉淀|验证|支持|负责|面向|基于/.test(text)) return true;
   return false;
@@ -44,6 +45,21 @@ function summaryItemsFromPublicResume(publicResume) {
     .map(cleanBulletText)
     .filter((item) => item && !isKeywordLikeText(item))
     .slice(0, 3);
+}
+
+function splitSkillTags(value) {
+  return String(value || "")
+    .split(/[、/，,｜|]/)
+    .map(cleanBulletText)
+    .filter(Boolean);
+}
+
+function renderTagGrid(items) {
+  const tags = [...new Set(items.flatMap(splitSkillTags))]
+    .filter((item) => item.length <= 18)
+    .slice(0, 12);
+  if (!tags.length) return "";
+  return `<div class="tag-grid">${tags.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>`;
 }
 
 function isWorkSectionStart(line) {
@@ -248,6 +264,8 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
   const structuredWorkItems = mergeWorkEntries(generatedWorkItems, originalWorkItems);
   const structuredProjectItems = publicResume && Array.isArray(publicResume.projects) ? publicResume.projects : [];
   const abilityItems = sectionItems(grouped, ["核心能力"]);
+  const abilityTagItems = abilityItems.map((item) => item.text).filter(isKeywordLikeText);
+  const abilityBulletItems = abilityItems.filter((item) => !isKeywordLikeText(item.text));
   const educationItems = sectionItems(grouped, ["教育经历"]);
   const portfolioItems = sectionItems(grouped, ["代表作品", "个人作品"]);
   const remainingItems = Object.entries(grouped)
@@ -311,6 +329,8 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
     li strong { color: var(--ink); font-weight: 800; }
     .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
     .chip { padding: 3px 7px; border-radius: 999px; background: #e8f6f3; color: #0f766e; font-size: 12px; font-weight: 800; }
+    .tag-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 2px; }
+    .tag-grid span { display: inline-flex; align-items: center; min-height: 28px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; color: #244a5a; background: #f7fafb; font-size: 13px; font-weight: 800; }
     .work-list { display: grid; gap: 10px; padding-left: 0; list-style: none; }
     .work-list li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #fff, var(--soft)); }
     .entry { margin: 0 0 14px; break-inside: avoid; }
@@ -338,7 +358,7 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
     </header>
     ${keywordOrder.length ? `<section><div class="chips">${keywordOrder.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
     ${(intro || introItems.length) ? `<section>${renderSectionTitle("个人简介")}${intro ? `<p>${escapeHtml(intro)}</p>` : ""}${renderBulletList(introItems)}</section>` : ""}
-    ${abilityItems.length ? `<section>${renderSectionTitle("核心能力")}${renderBulletList(abilityItems)}</section>` : ""}
+    ${(abilityTagItems.length || abilityBulletItems.length) ? `<section>${renderSectionTitle("核心能力")}${renderTagGrid(abilityTagItems)}${renderBulletList(abilityBulletItems)}</section>` : ""}
     ${(structuredWorkItems.length || workItems.length) ? `<section>${renderSectionTitle("工作经历")}<div class="job">${structuredWorkItems.length ? renderEntries(structuredWorkItems) : renderBulletList(workItems)}</div></section>` : ""}
     ${(structuredProjectItems.length || projectItems.length || fallbackProjectBullets.length) ? `<section>${renderSectionTitle("重点项目")}<div class="job">${structuredProjectItems.length ? renderEntries(structuredProjectItems) : fallbackProjectItems}</div></section>` : ""}
     ${remainingItems.length ? `<section>${renderSectionTitle("其他经历")}${renderBulletList(remainingItems)}</section>` : ""}
