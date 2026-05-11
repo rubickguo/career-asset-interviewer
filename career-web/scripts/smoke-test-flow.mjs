@@ -163,6 +163,9 @@ async function main() {
   assert.match(rendererSource, /class="page"/);
   assert.match(rendererSource, /section-title/);
   assert.match(rendererSource, /headline/);
+  assert.match(rendererSource, /isKeywordLikeText/);
+  assert.match(rendererSource, /summaryItemsFromPublicResume/);
+  assert.match(rendererSource, /renderSectionTitle\("核心能力"\)/);
 
   const workflowSource = await fs.readFile(path.join(rootDir, "server/workflow.js"), "utf8");
   assert.match(workflowSource, /先理解人，再处理简历/);

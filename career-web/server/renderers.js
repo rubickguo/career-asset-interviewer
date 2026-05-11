@@ -31,6 +31,21 @@ function cleanBulletText(value) {
     .trim();
 }
 
+function isKeywordLikeText(value) {
+  const text = cleanBulletText(value);
+  if (!text) return true;
+  if (text.length <= 12) return true;
+  if (!/[，。；;,.]|从|到|推动|负责|主导|参与|设计|搭建|优化|提升|降低|覆盖|增长|减少|实现|沉淀|验证|支持|负责|面向|基于/.test(text)) return true;
+  return false;
+}
+
+function summaryItemsFromPublicResume(publicResume) {
+  return (Array.isArray(publicResume?.summary) ? publicResume.summary : [])
+    .map(cleanBulletText)
+    .filter((item) => item && !isKeywordLikeText(item))
+    .slice(0, 3);
+}
+
 function parseCandidateName(resumeMeta, resumeText) {
   if (resumeMeta?.candidateName) return resumeMeta.candidateName;
   const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
@@ -75,7 +90,7 @@ function normalizePublicResume(publicResume) {
 
 function publicResumeToBullets(publicResume) {
   const bullets = [];
-  for (const text of Array.isArray(publicResume.summary) ? publicResume.summary : []) {
+  for (const text of summaryItemsFromPublicResume(publicResume)) {
     bullets.push({ section: "个人简介", text });
   }
   for (const item of Array.isArray(publicResume.experiences) ? publicResume.experiences : []) {
@@ -168,7 +183,7 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
   const fallbackContacts = contacts.length ? contacts : extractContacts(resumeText);
   const summary = publicResume?.headline || resumeStrategy?.positioning || careerDirection?.recommendedTrack || careerDirection?.headline || "职业定位待确认";
   const intro = publicResume ? "" : (resumeStrategy?.professionalSummary || resumeStrategy?.summary || "");
-  const introItems = sectionItems(grouped, ["个人简介"]);
+  const introItems = sectionItems(grouped, ["个人简介"]).filter((item) => !isKeywordLikeText(item.text));
   const workItems = sectionItems(grouped, ["工作经历"]);
   const projectItems = sectionItems(grouped, ["项目经历"]);
   const structuredWorkItems = publicResume && Array.isArray(publicResume.experiences) ? publicResume.experiences : [];
@@ -263,7 +278,8 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
       <p class="headline">${escapeHtml(summary)}</p>
     </header>
     ${keywordOrder.length ? `<section><div class="chips">${keywordOrder.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
-    ${(intro || introItems.length || abilityItems.length) ? `<section>${renderSectionTitle("个人简介")}${intro ? `<p>${escapeHtml(intro)}</p>` : ""}${renderBulletList([...introItems, ...abilityItems])}</section>` : ""}
+    ${(intro || introItems.length) ? `<section>${renderSectionTitle("个人简介")}${intro ? `<p>${escapeHtml(intro)}</p>` : ""}${renderBulletList(introItems)}</section>` : ""}
+    ${abilityItems.length ? `<section>${renderSectionTitle("核心能力")}${renderBulletList(abilityItems)}</section>` : ""}
     ${(structuredWorkItems.length || workItems.length) ? `<section>${renderSectionTitle("工作经历")}<div class="job">${structuredWorkItems.length ? renderEntries(structuredWorkItems) : renderBulletList(workItems)}</div></section>` : ""}
     ${(structuredProjectItems.length || projectItems.length || fallbackProjectBullets.length) ? `<section>${renderSectionTitle("重点项目")}<div class="job">${structuredProjectItems.length ? renderEntries(structuredProjectItems) : fallbackProjectItems}</div></section>` : ""}
     ${remainingItems.length ? `<section>${renderSectionTitle("其他经历")}${renderBulletList(remainingItems)}</section>` : ""}
