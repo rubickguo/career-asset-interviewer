@@ -167,6 +167,8 @@ async function main() {
   assert.match(rendererSource, /headline/);
   assert.match(rendererSource, /isKeywordLikeText/);
   assert.match(rendererSource, /summaryItemsFromPublicResume/);
+  assert.match(rendererSource, /extractOriginalWorkEntries/);
+  assert.match(rendererSource, /mergeWorkEntries/);
   assert.match(rendererSource, /renderSectionTitle\("核心能力"\)/);
 
   const workflowSource = await fs.readFile(path.join(rootDir, "server/workflow.js"), "utf8");
@@ -178,6 +180,7 @@ async function main() {
   assert.match(workflowSource, /个人网站不是简历网页版/);
   assert.match(workflowSource, /正式投递简历可预览内容/);
   assert.match(workflowSource, /个人简介\\|工作经历\\|项目经历\\|核心能力\\|个人作品\\|教育经历/);
+  assert.match(workflowSource, /禁止删除过往工作经历/);
   assert.match(workflowSource, /采访 -> 确认 -> 总结判断/);
   assert.match(workflowSource, /第一轮最多 3 题，第二轮最多 4 题，第三轮最多 2 题/);
   assert.match(workflowSource, /问答不是必经流程/);
@@ -295,7 +298,14 @@ async function main() {
     "匿名候选人",
     "邮箱：test@example.com ｜ 手机：18600000000",
     "GitHub：https://github.com/example ｜ 个人网站：https://example.dev",
-    "后端/工具工程师，3 年经验。做过内部自动化、权限系统重构、线上稳定性治理和个人工具。"
+    "后端/工具工程师，3 年经验。做过内部自动化、权限系统重构、线上稳定性治理和个人工具。",
+    "工作经历",
+    "匿名公司 ｜ 后端/工具工程师 ｜ 2023 - 至今",
+    "负责权限系统重构、内部自动化和线上稳定性治理。",
+    "过往公司 ｜ 后端实习生 ｜ 2022 - 2023",
+    "参与内部管理后台开发和数据脚本维护。",
+    "项目经历",
+    "权限系统重构"
   ].join("\n");
 
   await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
@@ -657,6 +667,7 @@ async function main() {
   assert.match(resumeHtml.text, /个人作品/);
   assert.match(resumeHtml.text, /教育经历/);
   assert.match(resumeHtml.text, /匿名公司/);
+  assert.match(resumeHtml.text, /过往公司/);
   assertNotIncludes(resumeHtml.text, ["项目排序", "待确认问题", "版式注意", "项目证据补强", "风险：", "layoutNotes", "pendingQuestions"], "resume HTML");
 
   if (!keepSession && sessionId.startsWith("career-smoke-")) {

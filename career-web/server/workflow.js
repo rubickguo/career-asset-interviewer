@@ -180,6 +180,7 @@ const resumeOutputInstruction = `正式简历输出要求：
 - bullets 只能使用这些 section：个人简介、工作经历、项目经历、核心能力、个人作品、教育经历。
 - 不要把“项目排序、待确认问题、版式注意、项目证据补强、风险、layoutNotes、pendingQuestions”等内部字段写进 bullets.text。
 - 必须额外输出 publicResume。publicResume 是渲染 HTML/PDF 的唯一优先来源，只能包含可展示字段，不能包含风险、待确认问题、内部排序、调试说明。
+- publicResume.experiences 必须保留原始简历里的全部工作经历条目（公司/岗位/时间）。可以压缩 bullet、调整重点和弱化不相关内容，但禁止删除过往工作经历，除非用户明确要求删除。
 - 如果某个 claim 还出现在 questions 或 pendingQuestions 中，publicResume 和 bullets 里不能把它写成事实；必须降级为更保守的表述，或暂时不写。
 - 每条 bullet 尽量采用“有意义的结果/变化 -> 关键动作 -> 能力证明”的顺序。
 - 指标必须可信。没有结果指标时写过程指标、质量指标或复杂度证据；仍不足时宁可弱化，也不要编数字。

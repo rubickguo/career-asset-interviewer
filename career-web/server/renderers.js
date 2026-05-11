@@ -46,6 +46,63 @@ function summaryItemsFromPublicResume(publicResume) {
     .slice(0, 3);
 }
 
+function isWorkSectionStart(line) {
+  return /^(工作经历|职业经历|工作经验|实习经历|Experience|Employment)/i.test(String(line || "").trim());
+}
+
+function isNextMajorSection(line) {
+  return /^(项目经历|重点项目|项目经验|教育经历|教育背景|个人作品|作品集|核心能力|专业技能|技能|自我评价|Projects|Education|Skills)/i.test(String(line || "").trim());
+}
+
+function looksLikeWorkTitle(line) {
+  const text = cleanBulletText(line);
+  if (!text || text.length > 88) return false;
+  if (/邮箱|手机|微信|GitHub|http|个人简介|求职/i.test(text)) return false;
+  return /20\d{2}|19\d{2}|至今|现在|公司|科技|网络|互动|工作室|平台|集团|产品经理|运营|工程师|负责人|实习/i.test(text);
+}
+
+function extractOriginalWorkEntries(resumeText) {
+  const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
+  const start = lines.findIndex(isWorkSectionStart);
+  if (start < 0) return [];
+  const sectionLines = [];
+  for (const line of lines.slice(start + 1)) {
+    if (isNextMajorSection(line)) break;
+    sectionLines.push(line);
+  }
+  const entries = [];
+  let current = null;
+  for (const line of sectionLines) {
+    if (looksLikeWorkTitle(line)) {
+      if (current) entries.push(current);
+      current = { title: cleanBulletText(line), bullets: [] };
+      continue;
+    }
+    if (current && /^[-•*·]|负责|参与|主导|推动|搭建|设计|优化|完成|支持/.test(line)) {
+      current.bullets.push(cleanBulletText(line).slice(0, 120));
+    }
+  }
+  if (current) entries.push(current);
+  return entries
+    .filter((item) => item.title)
+    .map((item) => ({ ...item, bullets: item.bullets.slice(0, 2) }))
+    .slice(0, 8);
+}
+
+function mergeWorkEntries(generatedEntries, originalEntries) {
+  const result = Array.isArray(generatedEntries) ? [...generatedEntries] : [];
+  const normalizedTitles = new Set(result.map((item) => cleanBulletText(item?.title).replace(/\s+/g, "").toLowerCase()));
+  for (const entry of originalEntries) {
+    const key = cleanBulletText(entry?.title).replace(/\s+/g, "").toLowerCase();
+    if (!key) continue;
+    const covered = Array.from(normalizedTitles).some((existing) => existing.includes(key) || key.includes(existing));
+    if (covered) continue;
+    result.push(entry);
+    normalizedTitles.add(key);
+  }
+  return result;
+}
+
 function parseCandidateName(resumeMeta, resumeText) {
   if (resumeMeta?.candidateName) return resumeMeta.candidateName;
   const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
@@ -186,7 +243,9 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
   const introItems = sectionItems(grouped, ["个人简介"]).filter((item) => !isKeywordLikeText(item.text));
   const workItems = sectionItems(grouped, ["工作经历"]);
   const projectItems = sectionItems(grouped, ["项目经历"]);
-  const structuredWorkItems = publicResume && Array.isArray(publicResume.experiences) ? publicResume.experiences : [];
+  const originalWorkItems = extractOriginalWorkEntries(resumeText);
+  const generatedWorkItems = publicResume && Array.isArray(publicResume.experiences) ? publicResume.experiences : [];
+  const structuredWorkItems = mergeWorkEntries(generatedWorkItems, originalWorkItems);
   const structuredProjectItems = publicResume && Array.isArray(publicResume.projects) ? publicResume.projects : [];
   const abilityItems = sectionItems(grouped, ["核心能力"]);
   const educationItems = sectionItems(grouped, ["教育经历"]);
