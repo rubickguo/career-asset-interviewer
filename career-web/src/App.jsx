@@ -509,7 +509,18 @@ function strategyHasRenderableResume(strategy) {
   );
 }
 
-function strategyBlocksRender(strategy) {
+function gapsRoundIsComplete(interview) {
+  const round = interview?.rounds?.gaps;
+  return Boolean(round && Number(round.openCount || 0) === 0 && Number(round.answeredCount || 0) > 0);
+}
+
+function strategyBlocksRender(strategy, interview = null) {
+  if (!strategy) return true;
+  if (strategyHasRenderableResume(strategy)) {
+    if (gapsRoundIsComplete(interview)) return false;
+    const readiness = readinessOf(strategy);
+    if (readiness.shouldAskUser === false && readiness.recommendedNextAction === "render_resume") return false;
+  }
   const asksForUser =
     resultNeedsUser(strategy) ||
     nextActionOf(strategy) === "ask_resume_gap_questions" ||
@@ -1713,7 +1724,7 @@ function InsightPage({
     );
   }
 
-  const blocksResumeRender = strategyBlocksRender(strategyResult);
+  const blocksResumeRender = strategyBlocksRender(strategyResult, interview);
   const gapAction = nextActionOf(strategyResult, shouldAskUser(strategyResult) ? "ask_resume_gap_questions" : "render_resume");
   const gapQuestions = resumeEvidenceQuestionsFromStrategy(strategyResult, { includeFallback: blocksResumeRender });
   const gapNextConfig = (() => {
@@ -1806,8 +1817,8 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
   );
 }
 
-function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender }) {
-  const blocksRender = strategy ? strategyBlocksRender(strategy) : false;
+function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender, interview }) {
+  const blocksRender = strategy ? strategyBlocksRender(strategy, interview) : false;
   const strategySummary = strategy
     ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 118)
     : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
@@ -2455,6 +2466,7 @@ function App() {
           busy={busy}
           onStrategy={() => runStep("resume_strategy", "resume", "resume")}
           onRender={() => runStep("resume_render", "resume", "resume")}
+          interview={state?.interview}
         />
       )}
       {route.view === "jd" && (

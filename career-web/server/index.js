@@ -1194,7 +1194,18 @@ function actionableResumeStrategyQuestions(result) {
   ].filter(questionLooksUsefulForResumeStrategy);
 }
 
-function resumeStrategyHasBlockingGaps(result) {
+function gapsRoundComplete(result, intake = null) {
+  if (!intake) return false;
+  const roundState = buildInterviewRoundState("gaps", { resume_strategy: { result } }, intake);
+  return Number(roundState.openCount || 0) === 0 && Number(roundState.answeredCount || 0) > 0;
+}
+
+function resumeStrategyHasBlockingGaps(result, intake = null) {
+  if (!result) return true;
+  if (hasPublicResumeSource(result)) {
+    if (gapsRoundComplete(result, intake)) return false;
+    if (result?.readiness?.shouldAskUser === false && recommendedActionFromResult(result) === "render_resume") return false;
+  }
   if (scoreMeetsThreshold(result) && hasPublicResumeSource(result)) return false;
   const hasActionableQuestions = actionableResumeStrategyQuestions(result).length > 0;
   return Boolean(
@@ -1646,7 +1657,7 @@ function actionGate(stepId, context) {
   const careerReadyForProjects = done(results, "career_direction") && !stepNeedsUser(results, "career_direction", context.intake);
   const projectReadyForStrategy = allowsResumeStrategy(results, context.intake);
   const resumeStrategyDone = done(results, "resume_strategy");
-  const strategyReadyForRender = resumeStrategyDone && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result);
+  const strategyReadyForRender = resumeStrategyDone && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result, context.intake);
   const gates = {
     career_direction: [hasResume, "需要先上传并解析简历。"],
     project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction", context.intake) ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
@@ -1883,10 +1894,10 @@ async function applyStepToAssets(stepId, result) {
   }
 }
 
-async function runResumeRender() {
+async function runResumeRender(context = null) {
   const resumeStrategy = (await getStepResult("resume_strategy"))?.result;
   if (!resumeStrategy) throw new Error("Run resume strategy before rendering resume HTML.");
-  if (resumeStrategyHasBlockingGaps(resumeStrategy)) {
+  if (resumeStrategyHasBlockingGaps(resumeStrategy, context?.intake)) {
     throw new Error("简历策略仍有待确认问题。请先完成简历证据补充，再生成正式 HTML/PDF 预览。");
   }
   const careerDirection = (await getStepResult("career_direction"))?.result || {};
@@ -2284,7 +2295,7 @@ async function executeWorkflowStep(stepId) {
     actionRun = await startActionRun(stepId, context);
 
     if (stepId === "resume_render") {
-      const result = await runResumeRender();
+      const result = await runResumeRender(context);
       const finishedRun = await finishActionRun(actionRun, { result, usage: null });
       const artifacts = await artifactState();
       return {
@@ -2697,7 +2708,7 @@ app.post("/api/steps/:stepId/run", async (req, res, next) => {
 app.post("/api/export/resume", async (_req, res, next) => {
   try {
     await ensureWorkspace();
-    const result = await runResumeRender();
+    const result = await runResumeRender(await buildWorkflowContext());
     res.json({ ok: true, result, artifacts: await artifactState() });
   } catch (error) {
     next(error);

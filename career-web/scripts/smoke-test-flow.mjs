@@ -129,6 +129,9 @@ async function main() {
   assert.match(appSource, /把能写进简历的证据补齐/);
   assert.match(appSource, /保存证据并更新策略/);
   assert.match(appSource, /resumeEvidenceQuestionsFromStrategy/);
+  assert.match(appSource, /gapsRoundIsComplete/);
+  assert.match(appSource, /strategyBlocksRender\(strategy, interview/);
+  assert.match(appSource, /<ResumePage[\s\S]*interview=\{state\?\.interview\}/);
   assert.match(appSource, /resume-workbench/);
   assert.match(appSource, /resume-strategy-panel/);
   assert.match(appSource, /blocksResumeRender/);
@@ -212,6 +215,9 @@ async function main() {
   assert.match(serverSource, /buildSessionContext\(sessionId, authSession\)/);
   assert.match(serverSource, /AUTH_REQUIRE_LOGIN/);
   assert.match(serverSource, /buildInterviewState/);
+  assert.match(serverSource, /resumeStrategyHasBlockingGaps\(result, intake/);
+  assert.match(serverSource, /gapsRoundComplete/);
+  assert.match(serverSource, /runResumeRender\(context\)/);
   assert.match(serverSource, /maxQuestions: 4/);
   assert.match(serverSource, /maxQuestions: 2/);
   assert.match(serverSource, /scoreMeetsThreshold/);
