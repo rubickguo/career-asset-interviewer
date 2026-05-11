@@ -97,6 +97,13 @@ async function main() {
   const appSource = await fs.readFile(path.join(rootDir, "src/App.jsx"), "utf8");
   assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化", "仙人指路", "避免重复消耗模型", "让问题漂移"], "App source");
   assert.match(appSource, /PRODUCT_NAME = "嗨找吧"/);
+  assert.match(appSource, /nextRouteFromState/);
+  assert.match(appSource, /continuePath = nextRouteFromState\(state\)/);
+  assert.match(appSource, /<LandingPage auth=\{auth\} state=\{state\}/);
+  assert.match(appSource, /已经有一份解析完成的简历。如需更换，请先点击右上角重置。/);
+  assert.match(appSource, /if \(state\?\.resumeMeta\) \{/);
+  assert.match(appSource, /setSelectedFile\(null\);\n\s+setStatus\(""\);\n\s+goPath\(nextRouteFromState\(state\)\)/);
+  assert.match(appSource, /resumeMeta \? "继续上次流程" : "上传并继续"/);
   assert.match(appSource, /mirrorHeading/);
   assert.match(appSource, /mirrorEyebrow/);
   assert.match(appSource, /第二轮留下来的证据线索/);

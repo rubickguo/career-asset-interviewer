@@ -394,6 +394,16 @@ function routeForNav(key, state) {
   return key;
 }
 
+function nextRouteFromState(state) {
+  if (!state?.resumeMeta) return "upload";
+  if (state?.artifacts?.resumeHtml || state?.llmResults?.resume_render?.result) return "resume";
+  if (state?.llmResults?.resume_strategy?.result) return "insight/gaps";
+  if (state?.interview?.currentRoute) return state.interview.currentRoute;
+  if (state?.llmResults?.project_mining?.result) return "insight/projects";
+  if (state?.llmResults?.career_direction?.result) return "diagnosis";
+  return "diagnosis";
+}
+
 const interviewRoundOrder = ["direction", "projects", "gaps"];
 
 function resultForInterviewRound(state, roundKey) {
@@ -910,8 +920,10 @@ function WaitingPage({ stepId, busy, onRefresh }) {
   );
 }
 
-function LandingPage({ auth }) {
+function LandingPage({ auth, state }) {
   const user = auth?.user;
+  const continuePath = nextRouteFromState(state);
+  const continueLabel = state?.resumeMeta ? "继续上次流程" : "开始梳理我的职业资产";
   return (
     <main className="landing-page">
       <header className="landing-nav">
@@ -922,7 +934,7 @@ function LandingPage({ auth }) {
         <div className="landing-nav-actions">
           <button className="nav-link" onClick={() => goTo("jd")}>分析 JD</button>
           {user ? (
-            <button className="nav-link" onClick={() => goTo("upload")}>{user.nickname || "继续使用"}</button>
+            <button className="nav-link" onClick={() => goPath(continuePath)}>{user.nickname || "继续使用"}</button>
           ) : (
             <button className="nav-link" onClick={() => goTo("login")}>手机号登录</button>
           )}
@@ -938,8 +950,8 @@ function LandingPage({ auth }) {
           先帮你弄清楚适合投什么，再把经历整理成可信证据，最后生成能预览、能导出的简历。
         </p>
         <div className="landing-actions">
-          <PrimaryButton icon={Sparkles} onClick={() => goTo("upload")}>
-            开始梳理我的职业资产
+          <PrimaryButton icon={Sparkles} onClick={() => goPath(continuePath)}>
+            {continueLabel}
           </PrimaryButton>
           <button className="small-entry" onClick={() => goTo("jd")}>
             上传简历后分析 JD
@@ -1014,6 +1026,11 @@ function UploadPage({ selectedFile, setSelectedFile, resumeMeta, busy, onUpload 
 
   function acceptResumeFile(file) {
     if (!file) return;
+    if (resumeMeta) {
+      setUploadError("已经有一份解析完成的简历。如需更换，请先点击右上角重置。");
+      setSelectedFile(null);
+      return;
+    }
     const validType = /(\.pdf|\.docx)$/i.test(file.name)
       || file.type === "application/pdf"
       || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -1064,19 +1081,19 @@ function UploadPage({ selectedFile, setSelectedFile, resumeMeta, busy, onUpload 
             onChange={(event) => acceptResumeFile(event.target.files?.[0])}
           />
           <Upload size={28} />
-          <strong>{selectedFile?.name || resumeMeta?.originalName || "选择 PDF 或 DOCX 简历"}</strong>
+          <strong>{resumeMeta?.originalName || selectedFile?.name || "选择 PDF 或 DOCX 简历"}</strong>
           <span>
-            {uploadError || (selectedFile
-              ? formatSize(selectedFile.size)
-              : resumeMeta
-                ? `已解析 ${resumeMeta.charCount || 0} 字`
+            {uploadError || (resumeMeta
+              ? `已解析 ${resumeMeta.charCount || 0} 字`
+              : selectedFile
+                ? formatSize(selectedFile.size)
                 : "点击选择，或把文件拖到这里")}
           </span>
         </label>
         <div className="step-actions">
           <GhostButton onClick={() => goTo("landing")}>返回</GhostButton>
           <PrimaryButton icon={busy ? Loader2 : ArrowRight} onClick={onUpload} disabled={busy || (!selectedFile && !resumeMeta)}>
-            {resumeMeta && !selectedFile ? "继续诊断" : "上传并继续"}
+            {resumeMeta ? "继续上次流程" : "上传并继续"}
           </PrimaryButton>
         </div>
       </div>
@@ -2192,8 +2209,10 @@ function App() {
   }
 
   async function uploadAndContinue() {
-    if (!selectedFile && state?.resumeMeta) {
-      goTo(careerResult ? "diagnosis" : "diagnosis");
+    if (state?.resumeMeta) {
+      setSelectedFile(null);
+      setStatus("");
+      goPath(nextRouteFromState(state));
       return;
     }
     if (!selectedFile) {
@@ -2356,7 +2375,7 @@ function App() {
     );
   }
 
-  if (route.view === "landing") return <LandingPage auth={auth} />;
+  if (route.view === "landing") return <LandingPage auth={auth} state={state} />;
 
   if (route.view === "login") {
     return (
