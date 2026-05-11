@@ -100,7 +100,7 @@ async function main() {
   assert.match(appSource, /mirrorHeading/);
   assert.match(appSource, /mirrorEyebrow/);
   assert.match(appSource, /第二轮留下来的证据线索/);
-  assert.match(appSource, /生成简历前的最后确认/);
+  assert.match(appSource, /简历证据补充后的判断/);
   assert.match(appSource, /按“前后对比”说清楚/);
   assert.match(appSource, /我眼中的你/);
   assert.match(appSource, /正在叠加到职业资产库的认知/);
@@ -115,13 +115,16 @@ async function main() {
   assert.match(appSource, /正在阅读你的简历/);
   assert.match(appSource, /开始第一轮访谈/);
   assert.match(appSource, /判断项目证据/);
-  assert.match(appSource, /判断简历缺口/);
+  assert.match(appSource, /生成简历策略/);
   assert.match(appSource, /保存并查看判断/);
   assert.match(appSource, /重新分析简历策略/);
   assert.match(appSource, /去补充简历证据/);
+  assert.match(appSource, /把能写进简历的证据补齐/);
+  assert.match(appSource, /保存证据并更新策略/);
+  assert.match(appSource, /resumeEvidenceQuestionsFromStrategy/);
   assert.match(appSource, /resume-deliverable-card/);
   assert.match(appSource, /sanitizeResumePendingQuestions/);
-  assertNotIncludes(appSource, ["重新生成策略", "进入第三轮确认", "先确认缺口"], "resume page copy");
+  assertNotIncludes(appSource, ["重新生成策略", "进入第三轮确认", "先确认缺口", "把模糊的地方说清楚"], "resume page copy");
   assert.match(appSource, /查看上一轮/);
   assert.match(appSource, /查看本轮判断/);
   assert.match(appSource, /确定并查看本轮判断/);
@@ -586,7 +589,7 @@ async function main() {
   const blockedJobStart = await request("/api/jobs/resume_render", { method: "POST", body: "{}" });
   const blockedJob = await pollJobStatus(blockedJobStart.data.job.id);
   assert.equal(blockedJob.status, "failed");
-  assert.match(blockedJob.error, /第三轮|待确认|简历策略/);
+  assert.match(blockedJob.error, /简历证据补充|待确认|简历策略/);
 
   await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), {
     ...resumeStrategyPayload,

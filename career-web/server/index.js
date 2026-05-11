@@ -1242,7 +1242,7 @@ function fallbackResumeGapQuestions() {
     {
       id: "resume_metric_evidence",
       question: "如果只补一类最能写进简历的数据，你能补哪一种：效率提升、准确率变化、覆盖规模、采用人数、内容/交易规模、人工成本下降，还是只能先写过程指标？",
-      why: "第三轮只追能改变简历 bullet 说服力的指标口径；没有结果指标时，也要找到最可信的过程指标。",
+      why: "简历证据补充只追能改变简历 bullet 说服力的指标口径；没有结果指标时，也要找到最可信的过程指标。",
       relatedAssetField: "resumeStories",
       blocksWhichDecision: "简历 bullet 的强弱和指标写法",
       expectedAnswerType: "metric",
@@ -1643,7 +1643,7 @@ function actionGate(stepId, context) {
     career_direction: [hasResume, "需要先上传并解析简历。"],
     project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction", context.intake) ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
     resume_strategy: [projectReadyForStrategy, stepNeedsUser(results, "project_mining", context.intake) ? "需要先完成第二轮项目证据确认。" : "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
-    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy", context.intake) ? "需要先完成第三轮简历缺口确认，才能生成正式预览。" : "需要先生成简历策略。"],
+    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy", context.intake) ? "需要先完成简历证据补充，才能生成正式预览。" : "需要先生成简历策略。"],
     jd_fit: [done(results, "career_direction") && hasJd, hasJd ? "需要先完成职业方向诊断。" : "需要先粘贴 JD。"],
     personal_site: [done(results, "project_mining") && !stepNeedsUser(results, "project_mining", context.intake) && strategyReadyForRender, "需要先完成项目证据和简历策略。"]
   };
@@ -1879,7 +1879,7 @@ async function runResumeRender() {
   const resumeStrategy = (await getStepResult("resume_strategy"))?.result;
   if (!resumeStrategy) throw new Error("Run resume strategy before rendering resume HTML.");
   if (resumeStrategyHasBlockingGaps(resumeStrategy)) {
-    throw new Error("简历策略仍有待确认问题。请先完成第三轮简历缺口确认，再生成正式 HTML/PDF 预览。");
+    throw new Error("简历策略仍有待确认问题。请先完成简历证据补充，再生成正式 HTML/PDF 预览。");
   }
   const careerDirection = (await getStepResult("career_direction"))?.result || {};
   const projectMining = (await getStepResult("project_mining"))?.result || {};

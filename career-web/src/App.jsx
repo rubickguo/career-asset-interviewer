@@ -80,19 +80,14 @@ const projectQuestionFallback = [
 
 const gapQuestionFallback = [
   {
-    id: "resume_ambiguity",
-    question: "基于前面的判断，我担心简历里最容易被追问的是模糊边界。你最担心哪一段说不清楚？",
-    placeholder: "可能是年限、岗位名称、项目时间、负责范围、数据口径、离职原因、是否主导。写担心点，不用先组织答案。"
+    id: "resume_metric_evidence",
+    question: "如果只补一类最能写进简历的数据，你能补哪一种：效率提升、准确率变化、覆盖规模、采用人数、内容/交易规模、人工成本下降，还是只能先写过程指标？",
+    placeholder: "写具体数字或口径：从 A 到 B、覆盖多少人/内容/流程、减少多少时间/人工/错误。如果没有结果指标，就写最可信的过程指标。"
   },
   {
-    id: "weak_claims",
-    question: "我会先给出简历主叙事，但需要你确认：哪些能力现在还不能写太满？",
-    placeholder: "比如架构设计、从 0 到 1、增长、管理、AI 落地、复杂协作。我们先标出来，证据不足就降级表达，不硬包装。"
-  },
-  {
-    id: "priority_order",
-    question: "最后确认公开边界和表达边界：哪些内容必须谨慎处理？",
-    placeholder: "比如公司名、项目细节、指标脱敏、目标城市、是否必须一页、是否要中英文、哪些经历不能公开。"
+    id: "resume_public_asset",
+    question: "有没有可以放进简历或作品区的公开材料：作品集、GitHub、Demo、文章、产品页或可脱敏项目链接？没有也可以直接写没有。",
+    placeholder: "如果有，贴链接或写名称；如果不能公开，写清楚可脱敏到什么程度。"
   }
 ];
 
@@ -124,12 +119,12 @@ const interviewRounds = {
   gaps: {
     index: 3,
     total: 3,
-    eyebrow: "第三轮",
-    title: "把模糊的地方说清楚。",
-    description: "这一轮处理那些容易被追问的地方。不是为了包装，而是避免把不确定的内容写成过度确定的优势。",
-    cta: "保存并生成策略",
+    eyebrow: "简历证据",
+    title: "把能写进简历的证据补齐。",
+    description: "这里只补会改变简历 bullet、指标口径、作品链接、公开边界或 claim 强弱的问题。问完就回到简历页生成预览。",
+    cta: "保存证据并更新策略",
     stepId: "resume_strategy",
-    next: "insight/gaps",
+    next: "resume",
     fallback: "interview/gaps",
     back: "insight/projects"
   }
@@ -159,8 +154,8 @@ const waitingCopy = {
   },
   resume_strategy: {
     title: "正在生成简历策略",
-    text: "这里不会直接堆好听的话，而是先确认定位、关键词顺序和项目取舍。策略稳定后，简历才会更像你本人。",
-    next: "insight/gaps",
+    text: "这里会把刚补充的证据重新放进简历策略里：先看哪些能写成强 bullet，哪些只能保守处理，再决定是否进入预览。",
+    next: "resume",
     fallback: "interview/gaps"
   },
   resume_render: {
@@ -263,12 +258,14 @@ function compactText(value, limit = 128) {
   return `${text.slice(0, limit).replace(/[，。；、\s]+$/g, "")}...`;
 }
 
+const RESUME_EVIDENCE_BLOCKED_RE = /需求文档|设计稿|截图|证明.*独立负责|证明材料|审核界面|结果展示.*设计|PRD.*证明/i;
+const RESUME_EVIDENCE_USEFUL_RE = /指标|数据|效率|准确率|覆盖|规模|人数|采用|反馈|留存|转化|成本|流水|收入|前后|变化|复核|错误|人工|GitHub|作品集|Demo|文章|产品页|链接|公开|脱敏|bullet|口径|claim|强弱/i;
+
 function sanitizeResumePendingQuestions(items) {
-  const blocked = /需求文档|设计稿|截图|证明.*独立负责|证明材料|审核界面|结果展示.*设计|PRD.*证明/i;
   return asArray(items)
     .map((item) => typeof item === "string" ? item : item?.question || item?.title || item?.text || "")
     .map((item) => String(item || "").trim())
-    .filter((item) => item && !blocked.test(item))
+    .filter((item) => item && !RESUME_EVIDENCE_BLOCKED_RE.test(item))
     .slice(0, 2);
 }
 
@@ -494,17 +491,23 @@ function resultNeedsUser(result) {
   return shouldAskUser(result);
 }
 
-function strategyBlocksRender(strategy) {
+function strategyHasRenderableResume(strategy) {
   return Boolean(
+    strategy?.publicResume?.headline ||
+      asArray(strategy?.publicResume?.summary).length ||
+      asArray(strategy?.publicResume?.experiences).length ||
+      asArray(strategy?.publicResume?.projects).length
+  );
+}
+
+function strategyBlocksRender(strategy) {
+  const asksForUser =
     resultNeedsUser(strategy) ||
-      asArray(strategy?.questions).length ||
-      asArray(strategy?.pendingQuestions).length ||
-      !(
-        strategy?.publicResume?.headline ||
-        asArray(strategy?.publicResume?.summary).length ||
-        asArray(strategy?.publicResume?.experiences).length ||
-        asArray(strategy?.publicResume?.projects).length
-      )
+    nextActionOf(strategy) === "ask_resume_gap_questions" ||
+    asArray(strategy?.questions).length > 0;
+  return Boolean(
+    !strategyHasRenderableResume(strategy) ||
+      (asksForUser && resumeEvidenceQuestionsFromStrategy(strategy, { includeFallback: true }).length > 0)
   );
 }
 
@@ -600,17 +603,58 @@ function projectQuestionsFromResult(result) {
   return [...fromPriority, ...life].slice(0, 3);
 }
 
-function gapQuestionsFromResult(result) {
-  const direct = asArray(result?.questions).map((item, index) => questionFromLlm(item, index, "gap_dynamic")).filter((item) => item.question);
-  if (direct.length) return direct.slice(0, 3);
-  return asArray(result?.pendingQuestions)
-    .map((question, index) => ({
-      id: `pending_gap_${index + 1}`,
+function resumeQuestionIsUseful(item) {
+  const text = String(item?.question || item?.text || item || "");
+  if (!text || RESUME_EVIDENCE_BLOCKED_RE.test(text)) return false;
+  return RESUME_EVIDENCE_USEFUL_RE.test(text);
+}
+
+function normalizeResumeEvidenceQuestion(item, index, prefix = "resume_evidence") {
+  const normalized = questionFromLlm(item, index, prefix);
+  if (!resumeQuestionIsUseful(normalized)) return null;
+  return {
+    ...normalized,
+    placeholder:
+      normalized.placeholder ||
+      "补可以写进简历的事实：数字、前后变化、覆盖规模、采用情况、公开链接或需要脱敏的边界。"
+  };
+}
+
+function resumeEvidenceQuestionsFromStrategy(result, { includeFallback = true } = {}) {
+  const direct = asArray(result?.questions)
+    .map((item, index) => normalizeResumeEvidenceQuestion(item, index, "resume_evidence_dynamic"))
+    .filter(Boolean);
+  const fromClaims = asArray(result?.claimDrafts || result?.claims || result?.resumeClaims)
+    .map((item, index) => normalizeResumeEvidenceQuestion({
+      id: item?.id || `claim_evidence_${index + 1}`,
+      question: item?.question || item?.missing || item?.risk || item?.evidenceGap || item?.gap || "",
+      placeholder: item?.placeholder || "补这个 claim 能不能写进简历的事实依据；没有就写需要降级表达。"
+    }, index, "claim_evidence"))
+    .filter(Boolean);
+  const fromPending = sanitizeResumePendingQuestions(result?.pendingQuestions)
+    .map((question, index) => normalizeResumeEvidenceQuestion({
+      id: `pending_resume_evidence_${index + 1}`,
       question,
       placeholder: "确认口径即可。无法确认就写不能公开、记不清、只能脱敏或需要降级表达。"
-    }))
-    .filter((item) => item.question)
-    .slice(0, 3);
+    }, index, "pending_resume_evidence"))
+    .filter(Boolean);
+  const fallback = includeFallback ? gapQuestionFallback : [];
+  const seen = new Set();
+  const resultItems = [];
+  for (const item of [...direct, ...fromClaims, ...fromPending, ...fallback]) {
+    const question = String(item?.question || "").trim();
+    if (!question) continue;
+    const key = question.replace(/\s+/g, "").toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    resultItems.push(item);
+    if (resultItems.length >= 2) break;
+  }
+  return resultItems;
+}
+
+function gapQuestionsFromResult(result) {
+  return resumeEvidenceQuestionsFromStrategy(result);
 }
 
 function StepShell({ view, routeId = "", status, busy, onReset, onLogout, state, auth, children }) {
@@ -1275,7 +1319,7 @@ function buildMirror(type, careerResult, projectResult, strategyResult) {
     });
   }
   return withDefaults(strategyResult?.mirrorCard, {
-    heading: "生成简历前的最后确认",
+    heading: "简历证据补充后的判断",
     hit: strategyResult?.headline || "现在不是继续堆经历，而是决定别人应该先记住哪个你。",
     sections: [
       {
@@ -1408,13 +1452,13 @@ function mirrorHeading(type, mirror) {
   if (mirror?.heading) return mirror.heading;
   if (type === "direction") return "本轮最值得留下的判断";
   if (type === "projects") return "项目里最需要补证据的地方";
-  return "生成简历前的最后确认";
+  return "简历证据补充后的判断";
 }
 
 function mirrorEyebrow(type, title) {
   if (title) return title;
   if (type === "projects") return "第二轮留下来的证据线索";
-  if (type === "gaps") return "生成简历前的最后确认";
+  if (type === "gaps") return "补充到简历策略里的内容";
   return "第一轮留下来的判断";
 }
 
@@ -1618,7 +1662,7 @@ function InsightPage({
     const action = nextActionOf(projectResult, shouldAskUser(projectResult) ? "ask_project_questions" : "run_resume_strategy");
     const nextConfig = (() => {
       if (action === "ask_project_questions" && hasOpenProjectQuestions) return { label: projectInterviewStarted ? "继续补充项目事实" : "开始第二轮访谈", onClick: () => goTo("interview", "projects") };
-      return { label: "判断简历缺口", onClick: onRunStrategy };
+      return { label: "生成简历策略", onClick: onRunStrategy };
     })();
     return (
       <section className="solo-page">
@@ -1651,9 +1695,10 @@ function InsightPage({
   }
 
   const gapAction = nextActionOf(strategyResult, shouldAskUser(strategyResult) ? "ask_resume_gap_questions" : "render_resume");
+  const gapQuestions = resumeEvidenceQuestionsFromStrategy(strategyResult, { includeFallback: gapAction === "ask_resume_gap_questions" });
   const gapNextConfig = (() => {
-    if (gapAction === "ask_resume_gap_questions") return { label: "开始第三轮访谈", onClick: () => goTo("interview", "gaps") };
-    return { label: "查看简历策略", onClick: onRenderResume || (() => goTo("resume")) };
+    if (gapAction === "ask_resume_gap_questions" && gapQuestions.length) return { label: "去补充简历证据", onClick: () => goTo("interview", "gaps") };
+    return { label: "进入简历预览", onClick: onRenderResume || (() => goTo("resume")) };
   })();
   return (
     <section className="solo-page">
@@ -1671,8 +1716,8 @@ function InsightPage({
         </article>
         <article className="hero-card light">
           <BadgeCheck size={24} />
-          <h2>暂时还不能写太满的地方</h2>
-          <p>{asArray(strategyResult?.pendingQuestions).slice(0, 4).join(" / ") || "没有明显未确认问题，仍建议预览后检查版式和措辞。"}</p>
+          <h2>{gapQuestions.length ? "还差几条能写进简历的证据" : "可以进入简历预览"}</h2>
+          <p>{gapQuestions.map((item) => item.question).join(" / ") || "没有明显未确认问题，下一步检查 HTML 和 PDF 的版式、密度和可读性。"}</p>
         </article>
       </div>
       <InsightAction nextText={gapNextConfig.label} onNext={gapNextConfig.onClick} />
@@ -1742,7 +1787,7 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender }) {
   const blocksRender = strategy ? strategyBlocksRender(strategy) : false;
-  const pendingQuestions = sanitizeResumePendingQuestions(strategy?.pendingQuestions);
+  const pendingQuestions = strategy ? resumeEvidenceQuestionsFromStrategy(strategy, { includeFallback: blocksRender }).map((item) => item.question) : [];
   const strategySummary = strategy
     ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 92)
     : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
@@ -1780,7 +1825,7 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
                 : "生成后会检查版式、导出 HTML 和 PDF。"}
           </p>
           <p className="resume-card-help">
-            {blocksRender ? "这会进入第三轮，只补会影响简历 bullet、指标口径或公开边界的问题。" : "策略稳定后再生成预览，避免把未确认内容写进正式简历。"}
+            {blocksRender ? "这一步只补简历证据：数据指标、作品链接、公开边界或 claim 强弱。补完会回到这里生成预览。" : "策略稳定后再生成预览，避免把未确认内容写进正式简历。"}
           </p>
           <PrimaryButton icon={busy ? Loader2 : FileText} onClick={blocksRender ? () => goTo("interview", "gaps") : onRender} disabled={busy || !strategy}>
             {blocksRender ? "去补充简历证据" : "生成预览和 PDF"}
@@ -2072,13 +2117,17 @@ function App() {
       ? activeRoundKey === "projects"
         ? "第二轮再补几个关键事实。"
         : activeRoundKey === "gaps"
-          ? "最后再确认几个边界。"
+          ? "继续补齐简历证据。"
           : activeRoundBase.title
       : activeRoundBase.title,
     description: activeRoundState?.answeredCount > 0 && activeRoundState?.openCount > 0
-      ? `前面 ${activeRoundState.answeredCount} 个问题已经保留。这里继续补充剩下会影响判断的问题，本轮最多 ${activeRoundState.maxQuestions} 题。`
+      ? activeRoundKey === "gaps"
+        ? `前面 ${activeRoundState.answeredCount} 个问题已经保留。这里继续补会影响简历 bullet、指标口径或公开边界的问题，本轮最多 ${activeRoundState.maxQuestions} 题。`
+        : `前面 ${activeRoundState.answeredCount} 个问题已经保留。这里继续补充剩下会影响判断的问题，本轮最多 ${activeRoundState.maxQuestions} 题。`
       : activeRoundBase.description,
-    cta: activeRoundState?.answeredCount > 0 && activeRoundState?.openCount > 0 ? "保存补充并继续判断" : activeRoundBase.cta
+    cta: activeRoundState?.answeredCount > 0 && activeRoundState?.openCount > 0
+      ? activeRoundKey === "gaps" ? "保存证据并更新策略" : "保存补充并继续判断"
+      : activeRoundBase.cta
   };
 
   const interviewQuestions = useMemo(() => {
@@ -2232,11 +2281,18 @@ function App() {
         })
       });
       const response = await api(`/jobs/${activeRound.stepId}`, { method: "POST", body: JSON.stringify({}) });
+      const waitingOverrides = activeRoundKey === "gaps"
+        ? {
+          next: "resume",
+          title: "正在把证据写回简历策略",
+          text: "这一步会重新判断刚补的指标、作品链接和公开边界，确认哪些能写进正式简历，哪些需要降级表达。"
+        }
+        : { next: activeRound.next };
       setStatus("");
       startWaiting(activeRound.stepId, {
         jobId: response.job.id,
-        next: activeRound.next,
-        fallback: activeRound.fallback
+        fallback: activeRound.fallback,
+        ...waitingOverrides
       });
     } catch (error) {
       setStatus(error.message);
