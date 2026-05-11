@@ -2304,9 +2304,38 @@ async function executeWorkflowStep(stepId) {
     }
 
     const messages = buildMessages(stepId, context);
+    const maxTokensByStep = {
+      career_direction: 4096,
+      project_mining: 6144,
+      resume_strategy: 8192,
+      jd_fit: 6144,
+      personal_site: 8192
+    };
     const startedAt = new Date().toISOString();
-    const llmResponse = await callDeepSeek(rootDir, messages, { json: true, thinking: false });
-    const rawResult = parseJsonResult(llmResponse.content);
+    let llmResponse = await callDeepSeek(rootDir, messages, {
+      json: true,
+      thinking: false,
+      maxTokens: maxTokensByStep[stepId] || 4096
+    });
+    let rawResult;
+    try {
+      rawResult = parseJsonResult(llmResponse.content);
+    } catch (parseError) {
+      const retryMessages = [
+        ...messages,
+        {
+          role: "user",
+          content: `上一次输出不是合法 JSON，错误是：${parseError.message}。请基于同一上下文重新输出完整、合法、可直接 JSON.parse 的 JSON。不要 Markdown，不要解释，不要省略字段。`
+        }
+      ];
+      llmResponse = await callDeepSeek(rootDir, retryMessages, {
+        json: true,
+        thinking: false,
+        temperature: 0,
+        maxTokens: maxTokensByStep[stepId] || 4096
+      });
+      rawResult = parseJsonResult(llmResponse.content);
+    }
     const result = normalizeWorkflowResult(stepId, rawResult, context, resumeMeta);
     const payload = {
       stepId,

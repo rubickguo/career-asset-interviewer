@@ -509,12 +509,53 @@ export function buildMessages(stepId, context) {
 }
 
 export function parseJsonResult(content) {
+  const normalize = (raw) => raw
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
+  const extractBalancedObject = (raw) => {
+    const text = normalize(raw);
+    const start = text.indexOf("{");
+    if (start < 0) return "";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let index = start; index < text.length; index += 1) {
+      const char = text[index];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === "\"") {
+          inString = false;
+        }
+        continue;
+      }
+      if (char === "\"") inString = true;
+      if (char === "{") depth += 1;
+      if (char === "}") {
+        depth -= 1;
+        if (depth === 0) return text.slice(start, index + 1);
+      }
+    }
+    return text.slice(start);
+  };
+  const cleanup = (raw) => extractBalancedObject(raw)
+    .replace(/,\s*([}\]])/g, "$1")
+    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, "");
   try {
-    return JSON.parse(content);
-  } catch {
-    const match = content.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error("LLM response was not valid JSON.");
-    return JSON.parse(match[0]);
+    return JSON.parse(normalize(content));
+  } catch (firstError) {
+    const jsonLike = cleanup(content);
+    if (!jsonLike) throw new Error("模型返回内容不是可解析的 JSON，请重试。");
+    try {
+      return JSON.parse(jsonLike);
+    } catch (secondError) {
+      const detail = secondError?.message || firstError?.message || "unknown JSON error";
+      throw new Error(`模型返回的 JSON 不完整，已停止写入结果。请重试一次。原始错误：${detail}`);
+    }
   }
 }
 

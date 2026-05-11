@@ -193,6 +193,8 @@ async function main() {
   assert.match(workflowSource, /questionSchemaInstruction/);
   assert.match(workflowSource, /relatedAssetField/);
   assert.match(workflowSource, /blocksWhichDecision/);
+  assert.match(workflowSource, /extractBalancedObject/);
+  assert.match(workflowSource, /模型返回的 JSON 不完整/);
   assert.match(workflowSource, /publicResume/);
   assertNotIncludes(workflowSource, ["你是一个客观、知性的职业发展分析助手"], "workflow prompt");
 
@@ -214,6 +216,9 @@ async function main() {
   assert.match(serverSource, /maxQuestions: 2/);
   assert.match(serverSource, /scoreMeetsThreshold/);
   assert.match(serverSource, /sanitizeQuestionsForStep/);
+  assert.match(serverSource, /maxTokensByStep/);
+  assert.match(serverSource, /resume_strategy: 8192/);
+  assert.match(serverSource, /上一次输出不是合法 JSON/);
 
   const landing = await request("/");
   assert.match(landing.text, /嗨找吧 HiJob/);
