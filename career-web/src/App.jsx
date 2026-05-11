@@ -1595,7 +1595,8 @@ function InsightPage({
   onRunProjects,
   onRunStrategy,
   onRenderResume,
-  interview
+  interview,
+  artifacts
 }) {
   if (type === "direction" && !careerResult) {
     return <GuardPage title="还没有初步诊断" text="先上传简历并完成一次初步诊断，再开始职业方向深访。" target="diagnosis" />;
@@ -1695,11 +1696,13 @@ function InsightPage({
     );
   }
 
+  const blocksResumeRender = strategyBlocksRender(strategyResult);
   const gapAction = nextActionOf(strategyResult, shouldAskUser(strategyResult) ? "ask_resume_gap_questions" : "render_resume");
-  const gapQuestions = resumeEvidenceQuestionsFromStrategy(strategyResult, { includeFallback: gapAction === "ask_resume_gap_questions" });
+  const gapQuestions = resumeEvidenceQuestionsFromStrategy(strategyResult, { includeFallback: blocksResumeRender });
   const gapNextConfig = (() => {
-    if (gapAction === "ask_resume_gap_questions" && gapQuestions.length) return { label: "去补充简历证据", onClick: () => goTo("interview", "gaps") };
-    return { label: "进入简历预览", onClick: onRenderResume || (() => goTo("resume")) };
+    if (blocksResumeRender) return { label: "去补充简历证据", onClick: () => goTo("interview", "gaps") };
+    if (artifacts?.resumeHtml) return { label: "进入简历预览", onClick: onRenderResume || (() => goTo("resume")) };
+    return { label: "生成简历预览", onClick: onRenderResume || (() => goTo("resume")) };
   })();
   return (
     <section className="solo-page">
@@ -1717,8 +1720,8 @@ function InsightPage({
         </article>
         <article className="hero-card light">
           <BadgeCheck size={24} />
-          <h2>{gapQuestions.length ? "还差几条能写进简历的证据" : "可以进入简历预览"}</h2>
-          <p>{gapQuestions.map((item) => item.question).join(" / ") || "没有明显未确认问题，下一步检查 HTML 和 PDF 的版式、密度和可读性。"}</p>
+          <h2>{blocksResumeRender ? "还有少量证据需要确认" : artifacts?.resumeHtml ? "简历预览已经生成" : "可以生成简历预览"}</h2>
+          <p>{blocksResumeRender ? "具体问题放到下一页处理。补完后会回到简历页生成预览。" : "下一步生成 HTML 和 PDF，然后检查版式、密度和可读性。"}</p>
         </article>
       </div>
       <InsightAction nextText={gapNextConfig.label} onNext={gapNextConfig.onClick} />
@@ -2456,8 +2459,9 @@ function App() {
           projectInterviewStarted={projectInterviewStarted}
           onRunProjects={() => runStep("project_mining", "insight/projects", "insight/direction")}
           onRunStrategy={() => runStep("resume_strategy", "insight/gaps", "insight/projects")}
-          onRenderResume={() => goTo("resume")}
+          onRenderResume={() => state?.artifacts?.resumeHtml ? goTo("resume") : runStep("resume_render", "resume", "resume")}
           interview={state?.interview}
+          artifacts={state?.artifacts}
         />
       )}
       {route.view === "waiting" && <WaitingPage stepId={route.id} busy={busy} onRefresh={loadState} />}
