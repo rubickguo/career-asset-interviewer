@@ -95,7 +95,8 @@ async function pollJobStatus(jobId) {
 
 async function main() {
   const appSource = await fs.readFile(path.join(rootDir, "src/App.jsx"), "utf8");
-  assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化"], "App source");
+  assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化", "仙人指路"], "App source");
+  assert.match(appSource, /PRODUCT_NAME = "嗨找吧"/);
   assert.match(appSource, /mirrorHeading/);
   assert.match(appSource, /mirrorEyebrow/);
   assert.match(appSource, /第二轮留下来的证据线索/);
@@ -174,6 +175,7 @@ async function main() {
   assert.match(serverSource, /maxQuestions: 9/);
 
   const landing = await request("/");
+  assert.match(landing.text, /嗨找吧 HiJob/);
   assert.match(landing.text, /<div id="root"><\/div>/);
   assert.match(landing.text, /assets\/index-/);
 

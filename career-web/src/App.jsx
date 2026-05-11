@@ -19,11 +19,14 @@ import {
   Upload,
   UserRound
 } from "lucide-react";
+import hijobMark from "./assets/hijob-mark.png";
 
 const APP_BASE = import.meta.env.BASE_URL || "/";
 const APP_PREFIX = APP_BASE === "/" ? "" : APP_BASE.replace(/\/$/, "");
 const API_BASE = `${APP_PREFIX}/api`;
 const SESSION_STORAGE_KEY = "career-web-session-id";
+const PRODUCT_NAME = "嗨找吧";
+const PRODUCT_NAME_EN = "HiJob";
 
 function createSessionId() {
   if (window.crypto?.randomUUID) return window.crypto.randomUUID().replace(/-/g, "");
@@ -519,7 +522,8 @@ function StepShell({ view, routeId = "", status, busy, onReset, onLogout, state,
     <main className="app-shell">
       <header className="top-nav">
         <button className="brand" onClick={() => goTo("landing")}>
-          <span>仙人指路</span>
+          <img className="brand-logo" src={hijobMark} alt="" />
+          <span>{PRODUCT_NAME}</span>
         </button>
         <nav className="route-dots" aria-label="流程">
           {routes.slice(1).map((item) => (
@@ -769,7 +773,8 @@ function LandingPage({ auth }) {
     <main className="landing-page">
       <header className="landing-nav">
         <button className="brand" onClick={() => goTo("landing")}>
-          <span>仙人指路</span>
+          <img className="brand-logo" src={hijobMark} alt="" />
+          <span>{PRODUCT_NAME}</span>
         </button>
         <div className="landing-nav-actions">
           <button className="nav-link" onClick={() => goTo("jd")}>分析 JD</button>
@@ -781,7 +786,7 @@ function LandingPage({ auth }) {
         </div>
       </header>
       <section className="landing-center">
-        <p className="eyebrow">职业资产工作台</p>
+        <p className="eyebrow">{PRODUCT_NAME_EN} 职业资产工作台</p>
         <h1>
           <span>先读懂你，</span>
           <span>再开始处理简历。</span>

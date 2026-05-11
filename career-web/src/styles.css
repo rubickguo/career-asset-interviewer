@@ -135,15 +135,14 @@ a {
   font-weight: 900;
 }
 
-.brand::before {
-  content: "";
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  background:
-    linear-gradient(135deg, rgba(11, 141, 130, 0.95), rgba(73, 104, 216, 0.86)),
-    linear-gradient(135deg, var(--coral), transparent);
-  box-shadow: 0 12px 26px rgba(11, 141, 130, 0.25);
+.brand-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(11, 141, 130, 0.18);
+  flex: 0 0 auto;
 }
 
 .nav-link,

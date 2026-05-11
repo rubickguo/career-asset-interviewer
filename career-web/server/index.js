@@ -2619,6 +2619,6 @@ app.use((error, _req, res, _next) => {
 const port = Number(process.env.PORT || 5174);
 const host = process.env.HOST || "127.0.0.1";
 app.listen(port, host, () => {
-  console.log(`Career asset app running at http://${host}:${port}`);
+  console.log(`HiJob app running at http://${host}:${port}`);
   console.log(`Workspace root: ${workspaceRootDir}`);
 });
