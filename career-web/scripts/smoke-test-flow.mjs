@@ -356,6 +356,50 @@ async function main() {
   assert.equal(interviewState.data.interview.rounds.projects.questions[1].locked, false);
   assert.equal(interviewState.data.interview.rounds.projects.questions[2].locked, false);
 
+  await writeJson(path.join(workspaceDir, "llm-results/project_mining.json"), {
+    stepId: "project_mining",
+    status: "done",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    model: "smoke-fixture",
+    result: {
+      headline: "项目素材继续等待确认。",
+      readiness: {
+        informationSufficient: false,
+        confidence: "medium",
+        shouldAskUser: true,
+        recommendedNextAction: "ask_project_questions",
+        reason: "模型重复追问了已经回答过的项目问题"
+      },
+      questions: [
+        {
+          id: "project_before_after",
+          question: "挑一个最重要的项目，按“前后对比”说清楚。",
+          why: "重复问题",
+          relatedAssetField: "projects",
+          blocksWhichDecision: "项目结果是否可信",
+          expectedAnswerType: "fact",
+          evidenceAnchor: "权限系统重构",
+          isRequired: true
+        }
+      ],
+      projectCards: [
+        {
+          name: "权限系统重构",
+          resumePotential: "重构企业权限模型，支持自定义角色和细粒度鉴权。"
+        }
+      ]
+    }
+  });
+
+  const duplicateQuestionState = await request("/api/state");
+  assert.equal(duplicateQuestionState.data.interview.rounds.projects.openCount, 0);
+  assert.equal(
+    duplicateQuestionState.data.orchestrator.actions.resume_strategy.allowed,
+    true,
+    "answered duplicate project questions should not trap the user in round two"
+  );
+
   const resumeStrategyPayload = {
     stepId: "resume_strategy",
     status: "done",

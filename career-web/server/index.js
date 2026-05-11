@@ -1149,9 +1149,15 @@ function projectEvidenceNeedsUser(result) {
   return Boolean(directQuestions || priorityGaps || skillGaps || lifeQuestions || textualGaps);
 }
 
-function stepNeedsUser(results, stepId) {
+function stepNeedsUser(results, stepId, intake = null) {
   const result = results?.[stepId]?.result;
-  return Boolean(result?.readiness?.shouldAskUser);
+  if (!result?.readiness?.shouldAskUser) return false;
+  const round = roundByStepId[stepId];
+  if (round && intake) {
+    const roundState = buildInterviewRoundState(round, results, intake);
+    if (roundState.openCount === 0 && roundState.answeredCount > 0) return false;
+  }
+  return true;
 }
 
 function resultRecommended(results, stepId, actions) {
@@ -1305,6 +1311,21 @@ function answeredItemsForRound(raw, round) {
   return parseAnswerItems(raw).filter((item) => item.round === round && item.answer);
 }
 
+function normalizedQuestionKey(value) {
+  return String(value || "").trim().replace(/\s+/g, "");
+}
+
+function unansweredQuestionsForRound(questions, raw, round) {
+  const answered = answeredItemsForRound(raw, round);
+  const answeredIds = new Set(answered.map((item) => item.id).filter(Boolean));
+  const answeredQuestions = new Set(answered.map((item) => normalizedQuestionKey(item.question)).filter(Boolean));
+  return asArray(questions).filter((item) => {
+    const id = String(item?.id || "").trim();
+    const question = normalizedQuestionKey(item?.question);
+    return !(id && answeredIds.has(id)) && !(question && answeredQuestions.has(question));
+  });
+}
+
 function applyRoundQuestionLimit(stepId, result, context) {
   const round = roundByStepId[stepId];
   const config = interviewRoundConfig[round];
@@ -1314,12 +1335,15 @@ function applyRoundQuestionLimit(stepId, result, context) {
   if (!shouldAsk) return next;
   const answeredCount = answeredItemsForRound(context?.careerAnswersJson, round).length;
   const remaining = Math.max(0, config.maxQuestions - answeredCount);
-  next.questions = asArray(next.questions).slice(0, remaining);
+  next.questions = unansweredQuestionsForRound(next.questions, context?.careerAnswersJson, round).slice(0, remaining);
   if (remaining <= 0 || next.questions.length === 0) {
+    const roundLabel = round === "direction" ? "一" : round === "projects" ? "二" : "三";
     return applyDeterministicReadiness(next, {
       action: config.nextActionWhenComplete,
       shouldAskUser: false,
-      reason: `第 ${round === "direction" ? "一" : round === "projects" ? "二" : "三"} 轮已达到 ${config.maxQuestions} 个问题上限。为避免用户疲劳，流程进入下一步。`
+      reason: remaining <= 0
+        ? `第 ${roundLabel} 轮已达到 ${config.maxQuestions} 个问题上限，流程进入下一步。`
+        : `第 ${roundLabel} 轮没有新的未回答问题，已有回答足够进入下一步。`
     });
   }
   next.readiness = {
@@ -1498,8 +1522,8 @@ function recommendedNextAction(results, stepId) {
   return String(results?.[stepId]?.result?.readiness?.recommendedNextAction || "");
 }
 
-function allowsResumeStrategy(results) {
-  if (done(results, "project_mining")) return !stepNeedsUser(results, "project_mining");
+function allowsResumeStrategy(results, intake = null) {
+  if (done(results, "project_mining")) return !stepNeedsUser(results, "project_mining", intake);
   return resultRecommended(results, "career_direction", ["run_resume_strategy", "render_resume"]);
 }
 
@@ -1507,16 +1531,16 @@ function actionGate(stepId, context) {
   const results = context.llmResults || {};
   const hasResume = context.resumeMeta?.parseStatus === "parsed";
   const hasJd = Boolean(String(context.jdText || "").replace(/^# JD\s*/i, "").trim());
-  const careerReadyForProjects = done(results, "career_direction") && !stepNeedsUser(results, "career_direction");
-  const projectReadyForStrategy = allowsResumeStrategy(results);
+  const careerReadyForProjects = done(results, "career_direction") && !stepNeedsUser(results, "career_direction", context.intake);
+  const projectReadyForStrategy = allowsResumeStrategy(results, context.intake);
   const strategyReadyForRender = done(results, "resume_strategy") && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result);
   const gates = {
     career_direction: [hasResume, "需要先上传并解析简历。"],
-    project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction") ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
-    resume_strategy: [projectReadyForStrategy, stepNeedsUser(results, "project_mining") ? "需要先完成第二轮项目证据确认。" : "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
-    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy") ? "需要先完成第三轮简历缺口确认，才能生成正式预览。" : "需要先生成简历策略。"],
+    project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction", context.intake) ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
+    resume_strategy: [projectReadyForStrategy, stepNeedsUser(results, "project_mining", context.intake) ? "需要先完成第二轮项目证据确认。" : "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
+    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy", context.intake) ? "需要先完成第三轮简历缺口确认，才能生成正式预览。" : "需要先生成简历策略。"],
     jd_fit: [done(results, "career_direction") && hasJd, hasJd ? "需要先完成职业方向诊断。" : "需要先粘贴 JD。"],
-    personal_site: [done(results, "project_mining") && !stepNeedsUser(results, "project_mining") && strategyReadyForRender, "需要先完成项目证据和简历策略。"]
+    personal_site: [done(results, "project_mining") && !stepNeedsUser(results, "project_mining", context.intake) && strategyReadyForRender, "需要先完成项目证据和简历策略。"]
   };
   const [allowed, reason] = gates[stepId] || [false, "未知 action。"];
   return {
@@ -1545,7 +1569,7 @@ async function buildOrchestratorState({ resumeMeta, llmResults, artifacts, intak
   if (done(llmResults, "jd_fit")) stage = "jd_analyzed";
   if (done(llmResults, "personal_site") || artifacts?.personalSiteHtml) stage = "site_ready";
 
-  const context = { resumeMeta, llmResults, jdText };
+  const context = { resumeMeta, llmResults, jdText, intake };
   const actions = Object.fromEntries(Object.keys(actionContracts).map((stepId) => [stepId, actionGate(stepId, context)]));
   return {
     userId: currentUserId(),
@@ -2134,7 +2158,7 @@ async function executeWorkflowStep(stepId) {
       careerDirectionAnswersJson: await readText(path.join(dirs.intake, "career-direction-answers.json")),
       jd: await readText(path.join(dirs.intake, "jd.md"))
     };
-    const gate = actionGate(stepId, { resumeMeta, llmResults: llmResultsBefore, jdText: intake.jd });
+    const gate = actionGate(stepId, { resumeMeta, llmResults: llmResultsBefore, jdText: intake.jd, intake });
     if (!gate.allowed) throw new Error(gate.reason);
     const context = await buildWorkflowContext();
     actionRun = await startActionRun(stepId, context);

@@ -1516,9 +1516,11 @@ function InsightPage({
   if (type === "projects") {
     const projects = asArray(projectResult?.priorityProjects).slice(0, 4);
     const metricPlan = asArray(projectResult?.metricPlan).slice(0, 3);
+    const projectRoundState = interview?.rounds?.projects;
+    const hasOpenProjectQuestions = Number(projectRoundState?.openCount || 0) > 0;
     const action = nextActionOf(projectResult, shouldAskUser(projectResult) ? "ask_project_questions" : "run_resume_strategy");
     const nextConfig = (() => {
-      if (action === "ask_project_questions") return { label: projectInterviewStarted ? "继续补充项目事实" : "开始第二轮访谈", onClick: () => goTo("interview", "projects") };
+      if (action === "ask_project_questions" && hasOpenProjectQuestions) return { label: projectInterviewStarted ? "继续补充项目事实" : "开始第二轮访谈", onClick: () => goTo("interview", "projects") };
       return { label: "判断简历缺口", onClick: onRunStrategy };
     })();
     return (
