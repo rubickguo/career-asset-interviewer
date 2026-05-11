@@ -96,7 +96,10 @@ async function pollJobStatus(jobId) {
 async function main() {
   const appSource = await fs.readFile(path.join(rootDir, "src/App.jsx"), "utf8");
   assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化"], "App source");
-  assert.match(appSource, /这里有一个值得继续验证的信号/);
+  assert.match(appSource, /mirrorHeading/);
+  assert.match(appSource, /mirrorEyebrow/);
+  assert.match(appSource, /第二轮留下来的证据线索/);
+  assert.match(appSource, /生成简历前的最后确认/);
   assert.match(appSource, /按“前后对比”说清楚/);
   assert.match(appSource, /下一步怎么处理/);
   assert.match(appSource, /insight-action/);
@@ -110,11 +113,12 @@ async function main() {
   assert.match(appSource, /判断简历缺口/);
   assert.match(appSource, /保存并查看判断/);
   assert.match(appSource, /routeForNav/);
-  assert.match(appSource, /readOnly=\{readOnly\}/);
+  assert.match(appSource, /readOnly=\{readOnly \|\| item\.locked\}/);
   assert.match(appSource, /projectItemsFromResult/);
   assert.match(appSource, /查看项目证据/);
   assert.match(appSource, /请先回答当前页的问题/);
   assert.match(appSource, /savedQuestionsForRound/);
+  assert.match(appSource, /state\?\.interview\?\.currentRoute/);
   assert.match(appSource, /上传简历后分析 JD/);
   assert.match(appSource, /waiting-error-panel/);
   assert.match(appSource, /LoginPage/);
@@ -122,7 +126,7 @@ async function main() {
   assert.match(appSource, /手机号登录/);
   assert.match(appSource, /获取验证码/);
   assert.match(appSource, /auth\/phone\/send-code/);
-  assertNotIncludes(appSource, ["先看初步判断", "继续深访", "整理项目线索", "回去调整", "每个重点项目，最后有哪些可以被别人相信的变化", "progressWidth"], "App source");
+  assertNotIncludes(appSource, ["先看初步判断", "继续深访", "整理项目线索", "回去调整", "每个重点项目，最后有哪些可以被别人相信的变化", "progressWidth", "if (key === \"interview\") return \"interview/direction\"", "这里有一个值得继续验证的信号", "下面，我想进一步了解你"], "App source");
 
   const rendererSource = await fs.readFile(path.join(rootDir, "server/renderers.js"), "utf8");
   assert.match(rendererSource, /class="page"/);
@@ -166,6 +170,8 @@ async function main() {
   assert.match(serverSource, /PHONE_LOGIN_ENABLED/);
   assert.match(serverSource, /buildSessionContext\(sessionId, authSession\)/);
   assert.match(serverSource, /AUTH_REQUIRE_LOGIN/);
+  assert.match(serverSource, /buildInterviewState/);
+  assert.match(serverSource, /maxQuestions: 9/);
 
   const landing = await request("/");
   assert.match(landing.text, /<div id="root"><\/div>/);
@@ -277,6 +283,35 @@ async function main() {
     model: "smoke-fixture",
     result: {
       headline: "项目素材可用，但需要补角色边界和指标口径。",
+      readiness: {
+        informationSufficient: false,
+        confidence: "medium",
+        shouldAskUser: true,
+        recommendedNextAction: "ask_project_questions",
+        reason: "还需要补项目事实"
+      },
+      questions: [
+        {
+          id: "project_role_scope_followup",
+          question: "权限系统重构里，哪些设计判断由你负责，哪些只是团队共同决定？",
+          why: "确认角色边界",
+          relatedAssetField: "projects",
+          blocksWhichDecision: "是否可以把权限系统写成核心项目",
+          expectedAnswerType: "fact",
+          evidenceAnchor: "权限系统重构",
+          isRequired: true
+        },
+        {
+          id: "project_metric_followup",
+          question: "权限系统重构上线后，最能证明变化的是配置效率、问题减少、覆盖团队，还是维护成本下降？",
+          why: "确认指标口径",
+          relatedAssetField: "projects",
+          blocksWhichDecision: "简历 bullet 应该先写哪类变化",
+          expectedAnswerType: "metric",
+          evidenceAnchor: "权限系统重构",
+          isRequired: true
+        }
+      ],
       projectCards: [
         {
           name: "权限系统重构",
@@ -285,6 +320,34 @@ async function main() {
       ]
     }
   });
+
+  await request("/api/intake/career-direction-answers", {
+    method: "POST",
+    body: JSON.stringify({
+      answers: [
+        {
+          id: "target_direction",
+          round: "direction",
+          question: "我先假设：你未必一定要换职业，可能只是想换一种工作方式。这个判断哪里不对？",
+          answer: "我更想保留工程能力，但靠近能定义问题和做工具的位置。"
+        },
+        {
+          id: "project_before_after",
+          round: "projects",
+          question: "挑一个最重要的项目，按“前后对比”说清楚。",
+          answer: "权限系统重构前配置依赖人工审批，之后支持自定义角色和更细粒度授权。"
+        }
+      ]
+    })
+  });
+  const interviewState = await request("/api/state");
+  assert.equal(interviewState.data.interview.currentRoute, "interview/projects");
+  assert.equal(interviewState.data.interview.rounds.projects.maxQuestions, 9);
+  assert.equal(interviewState.data.interview.rounds.projects.answeredCount, 1);
+  assert.equal(interviewState.data.interview.rounds.projects.questions.length, 3);
+  assert.equal(interviewState.data.interview.rounds.projects.questions[0].locked, true);
+  assert.equal(interviewState.data.interview.rounds.projects.questions[1].locked, false);
+  assert.equal(interviewState.data.interview.rounds.projects.questions[2].locked, false);
 
   const resumeStrategyPayload = {
     stepId: "resume_strategy",

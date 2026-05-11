@@ -1228,6 +1228,29 @@ const questionDefaultsByStep = {
   }
 };
 
+const interviewRoundConfig = {
+  direction: {
+    stepId: "career_direction",
+    askAction: "ask_direction_questions",
+    nextActionWhenComplete: "run_project_mining",
+    maxQuestions: 3
+  },
+  projects: {
+    stepId: "project_mining",
+    askAction: "ask_project_questions",
+    nextActionWhenComplete: "run_resume_strategy",
+    maxQuestions: 9
+  },
+  gaps: {
+    stepId: "resume_strategy",
+    askAction: "ask_resume_gap_questions",
+    nextActionWhenComplete: "render_resume",
+    maxQuestions: 3
+  }
+};
+
+const roundByStepId = Object.fromEntries(Object.entries(interviewRoundConfig).map(([round, config]) => [config.stepId, round]));
+
 const allowedQuestionAssetFields = new Set(["profile", "directions", "keywords", "projects", "skillsEvidence", "resumeStories", "publicBoundary"]);
 const allowedAnswerTypes = new Set(["fact", "metric", "preference", "constraint", "boundary", "correction"]);
 
@@ -1261,6 +1284,56 @@ function normalizeQuestionsForStep(stepId, questions) {
     .map((item, index) => normalizeQuestionForStep(stepId, item, index))
     .filter(Boolean)
     .slice(0, 3);
+}
+
+function parseAnswerItems(raw) {
+  try {
+    return asArray(JSON.parse(raw || "{}")?.answers)
+      .map((item) => ({
+        id: String(item?.id || "").trim(),
+        round: String(item?.round || "").trim(),
+        question: String(item?.question || "").trim(),
+        answer: String(item?.answer || "").trim()
+      }))
+      .filter((item) => item.id || item.question || item.answer);
+  } catch {
+    return [];
+  }
+}
+
+function answeredItemsForRound(raw, round) {
+  return parseAnswerItems(raw).filter((item) => item.round === round && item.answer);
+}
+
+function applyRoundQuestionLimit(stepId, result, context) {
+  const round = roundByStepId[stepId];
+  const config = interviewRoundConfig[round];
+  if (!round || !config) return result;
+  const next = { ...(result || {}) };
+  const shouldAsk = next.readiness?.shouldAskUser || recommendedActionFromResult(next) === config.askAction || asArray(next.questions).length > 0;
+  if (!shouldAsk) return next;
+  const answeredCount = answeredItemsForRound(context?.careerAnswersJson, round).length;
+  const remaining = Math.max(0, config.maxQuestions - answeredCount);
+  next.questions = asArray(next.questions).slice(0, remaining);
+  if (remaining <= 0 || next.questions.length === 0) {
+    return applyDeterministicReadiness(next, {
+      action: config.nextActionWhenComplete,
+      shouldAskUser: false,
+      reason: `第 ${round === "direction" ? "一" : round === "projects" ? "二" : "三"} 轮已达到 ${config.maxQuestions} 个问题上限。为避免用户疲劳，流程进入下一步。`
+    });
+  }
+  next.readiness = {
+    ...(next.readiness || {}),
+    informationSufficient: false,
+    shouldAskUser: true,
+    recommendedNextAction: config.askAction,
+    reason: next.readiness?.reason || `本轮还剩 ${remaining} 个可追问名额，只保留会影响判断的问题。`
+  };
+  return next;
+}
+
+function recommendedActionFromResult(result) {
+  return String(result?.readiness?.recommendedNextAction || "");
 }
 
 function applyDeterministicReadiness(result, { action, shouldAskUser, reason }) {
@@ -1370,6 +1443,8 @@ function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
       next.mirrorCard = fallbackMirrorCard(next);
     }
     next.questions = normalizeQuestionsForStep(stepId, next.questions);
+    next = applyRoundQuestionLimit(stepId, next, context);
+    if (!next.readiness?.shouldAskUser) return next;
     if (next.questions.length && !hasUserAnsweredCareerQuestions(context)) {
       return applyDeterministicReadiness(next, {
         action: "ask_direction_questions",
@@ -1393,7 +1468,7 @@ function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
       questions: fallbackProjectQuestions()
     });
     next.questions = normalizeQuestionsForStep(stepId, next.questions);
-    return next;
+    return applyRoundQuestionLimit(stepId, next, context);
   }
 
   if (stepId === "project_mining") {
@@ -1406,13 +1481,14 @@ function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
 
   if (stepId === "resume_strategy") {
     const hasBlockingGaps = resumeStrategyHasBlockingGaps(next);
-    return applyDeterministicReadiness(next, {
+    next = applyDeterministicReadiness(next, {
       action: hasBlockingGaps ? "ask_resume_gap_questions" : "render_resume",
       shouldAskUser: hasBlockingGaps,
       reason: hasBlockingGaps
         ? next.readiness?.reason || "简历策略还有模糊点、公开边界或可渲染简历内容需要确认。"
         : next.readiness?.reason || "简历策略和可展示内容已足够进入预览。"
     });
+    return applyRoundQuestionLimit(stepId, next, context);
   }
 
   return next;
@@ -1480,6 +1556,88 @@ async function buildOrchestratorState({ resumeMeta, llmResults, artifacts, intak
       count: projectCards.length,
       confirmedCount: projectCards.filter((card) => card.confirmed).length
     }
+  };
+}
+
+function buildInterviewRoundState(round, llmResults, intake) {
+  const config = interviewRoundConfig[round];
+  const result = llmResults?.[config.stepId]?.result || {};
+  const answers = answeredItemsForRound(intake?.careerDirectionAnswersJson, round);
+  const answerById = new Map(answers.map((item) => [item.id, item]));
+  const merged = [];
+  const seen = new Set();
+
+  for (const item of answers) {
+    if (!item.id || seen.has(item.id)) continue;
+    seen.add(item.id);
+    merged.push({
+      id: item.id,
+      round,
+      question: item.question || item.id,
+      placeholder: "这个问题已经回答过。为了保持判断连续，答案会保留为只读。",
+      savedAnswer: item.answer,
+      locked: true
+    });
+  }
+
+  const shouldShowOpenQuestions = recommendedActionFromResult(result) === config.askAction || result?.readiness?.shouldAskUser === true;
+  const remaining = Math.max(0, config.maxQuestions - merged.length);
+  if (shouldShowOpenQuestions && remaining > 0) {
+    for (const item of normalizeQuestionsForStep(config.stepId, result.questions).slice(0, remaining)) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      const saved = answerById.get(item.id);
+      merged.push({
+        ...item,
+        round,
+        savedAnswer: saved?.answer || "",
+        locked: Boolean(saved?.answer)
+      });
+    }
+  }
+
+  const openCount = merged.filter((item) => !item.locked).length;
+  const answeredCount = answers.length;
+  const status = openCount > 0 ? "open" : answeredCount > 0 ? "answered" : "empty";
+  return {
+    round,
+    stepId: config.stepId,
+    maxQuestions: config.maxQuestions,
+    askedCount: merged.length,
+    answeredCount,
+    remainingCount: Math.max(0, config.maxQuestions - merged.length),
+    openCount,
+    status,
+    questions: merged
+  };
+}
+
+async function buildInterviewState({ llmResults, intake }) {
+  const rounds = Object.fromEntries(
+    Object.keys(interviewRoundConfig).map((round) => [round, buildInterviewRoundState(round, llmResults, intake)])
+  );
+  let currentRound = "direction";
+  if (rounds.gaps.openCount || recommendedActionFromResult(llmResults?.resume_strategy?.result) === "ask_resume_gap_questions") {
+    currentRound = "gaps";
+  } else if (
+    rounds.projects.openCount ||
+    rounds.projects.answeredCount > 0 ||
+    recommendedActionFromResult(llmResults?.project_mining?.result) === "ask_project_questions" ||
+    done(llmResults, "project_mining")
+  ) {
+    currentRound = "projects";
+  } else if (rounds.direction.openCount || rounds.direction.answeredCount > 0 || done(llmResults, "career_direction")) {
+    currentRound = "direction";
+  }
+  return {
+    currentRound,
+    currentRoute: `interview/${currentRound}`,
+    rounds,
+    assetNotes: [
+      ...rounds.direction.questions.filter((item) => item.locked).slice(-2).map((item) => `方向线索：${item.answer || item.savedAnswer}`),
+      ...rounds.projects.questions.filter((item) => item.locked).slice(-3).map((item) => `项目证据：${item.answer || item.savedAnswer}`),
+      ...rounds.gaps.questions.filter((item) => item.locked).slice(-2).map((item) => `表达边界：${item.answer || item.savedAnswer}`)
+    ].filter(Boolean)
   };
 }
 
@@ -2077,6 +2235,7 @@ app.get("/api/state", async (_req, res, next) => {
     const projectCards = await readProjectCards();
     const llmResults = await listLlmResults(dirs.llmResults);
     const artifacts = await artifactState();
+    const interview = await buildInterviewState({ llmResults, intake });
     res.json({
       user: {
         id: currentUserId(),
@@ -2096,6 +2255,7 @@ app.get("/api/state", async (_req, res, next) => {
       intake,
       projectCards,
       llmResults,
+      interview,
       artifacts,
       orchestrator: await buildOrchestratorState({ resumeMeta, llmResults, artifacts, intake, projectCards }),
       actionRuns: await listActionRuns(),
