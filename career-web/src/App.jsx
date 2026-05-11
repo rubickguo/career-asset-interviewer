@@ -299,22 +299,56 @@ function answeredIdsFromState(state) {
   return new Set(savedAnswersList(state?.intake?.careerDirectionAnswersJson).filter((item) => String(item.answer || "").trim()).map((item) => item.id));
 }
 
+function savedQuestionsForRound(state, roundKey, fallbackQuestions = []) {
+  const saved = savedAnswersList(state?.intake?.careerDirectionAnswersJson);
+  const byRound = saved.filter((item) => item.round === roundKey && String(item.answer || "").trim());
+  const items = byRound.length ? byRound : saved.filter((item) => {
+    const fallbackIds = new Set(fallbackQuestions.map((question) => question.id));
+    return fallbackIds.has(item.id) && String(item.answer || "").trim();
+  });
+  return items.map((item) => ({
+    id: item.id,
+    question: item.question || item.id,
+    placeholder: "这一轮已经提交，答案会保持只读。",
+    savedAnswer: item.answer || ""
+  }));
+}
+
 function routeForNav(key, state) {
   if (key === "landing") return "landing";
   if (key === "upload") return "upload";
-  if (key === "diagnosis") return state?.llmResults?.career_direction?.result ? "diagnosis" : "upload";
+  if (key === "diagnosis") return state?.resumeMeta ? "diagnosis" : "upload";
   if (key === "interview") return "interview/direction";
   if (key === "projects") return state?.llmResults?.project_mining?.result ? "insight/projects" : "projects";
   if (key === "resume") return "resume";
   return key;
 }
 
+function currentStepMeta(view, id = "") {
+  if (view === "upload") return { index: 1, total: 5, label: "上传简历" };
+  if (view === "diagnosis") return { index: 2, total: 5, label: "初步诊断" };
+  if (view === "interview") {
+    const round = interviewRounds[id || "direction"] || interviewRounds.direction;
+    return { index: Math.min(2 + round.index, 5), total: 5, label: round.eyebrow };
+  }
+  if (view === "projects" || id === "projects") return { index: 4, total: 5, label: "项目证据" };
+  if (view === "resume" || id === "gaps") return { index: 5, total: 5, label: "简历预览" };
+  if (view === "waiting") {
+    const map = {
+      career_direction: { index: 2, total: 5, label: "理解方向" },
+      project_mining: { index: 4, total: 5, label: "提炼项目" },
+      resume_strategy: { index: 5, total: 5, label: "简历策略" },
+      resume_render: { index: 5, total: 5, label: "生成预览" }
+    };
+    return map[id] || { index: 1, total: 5, label: "处理中" };
+  }
+  return { index: 1, total: 5, label: "开始" };
+}
+
 function isRouteReadOnly(route, state) {
   if (route.view !== "interview") return false;
   const answeredIds = answeredIdsFromState(state);
   const round = interviewRounds[route.id || "direction"] || interviewRounds.direction;
-  if (route.id === "projects" && state?.llmResults?.project_mining?.result) return true;
-  if (route.id === "gaps" && state?.llmResults?.resume_strategy?.result) return true;
   const idsByRound = {
     direction: [
       ...questionFallback.map((item) => item.id),
@@ -329,7 +363,25 @@ function isRouteReadOnly(route, state) {
       ...gapQuestionsFromResult(state?.llmResults?.resume_strategy?.result).map((item) => item.id)
     ]
   };
-  return asArray(idsByRound[route.id || "direction"]).some((id) => answeredIds.has(id)) || state?.orchestrator?.stage !== "diagnosis_ready" && round.index < 3;
+  return asArray(idsByRound[route.id || "direction"]).some((id) => answeredIds.has(id));
+}
+
+function resultNeedsUser(result) {
+  return shouldAskUser(result);
+}
+
+function strategyBlocksRender(strategy) {
+  return Boolean(
+    resultNeedsUser(strategy) ||
+      asArray(strategy?.questions).length ||
+      asArray(strategy?.pendingQuestions).length ||
+      !(
+        strategy?.publicResume?.headline ||
+        asArray(strategy?.publicResume?.summary).length ||
+        asArray(strategy?.publicResume?.experiences).length ||
+        asArray(strategy?.publicResume?.projects).length
+      )
+  );
 }
 
 function projectItemsFromResult(result, cards) {
@@ -437,7 +489,8 @@ function gapQuestionsFromResult(result) {
     .slice(0, 3);
 }
 
-function StepShell({ view, status, busy, onReset, state, children }) {
+function StepShell({ view, routeId = "", status, busy, onReset, state, children }) {
+  const stepMeta = currentStepMeta(view, routeId);
   return (
     <main className="app-shell">
       <header className="top-nav">
@@ -456,6 +509,9 @@ function StepShell({ view, status, busy, onReset, state, children }) {
             </button>
           ))}
         </nav>
+        <div className="mobile-step-indicator">
+          {stepMeta.index}/{stepMeta.total} {stepMeta.label}
+        </div>
         <button className="reset-button" onClick={onReset} aria-label="重置流程" disabled={busy}>
           {busy ? <Loader2 className="spin" size={18} /> : <RotateCcw size={18} />}
           <span>重置</span>
@@ -573,6 +629,22 @@ function WaitingPage({ stepId, busy, onRefresh }) {
         ? "马上就好，正在把材料放在一起看，避免太早下结论。"
         : "已经开始整理了，完成后会自动进入下一步。";
 
+  function stateHasStepResult(nextState) {
+    if (stepId === "resume_render") return Boolean(nextState?.llmResults?.resume_render?.result || nextState?.artifacts?.resumeHtml);
+    return Boolean(nextState?.llmResults?.[stepId]?.result);
+  }
+
+  async function finishIfStateReady() {
+    if (context.jobId) return false;
+    const nextState = await onRefresh();
+    if (stateHasStepResult(nextState)) {
+      window.sessionStorage.removeItem("career-web-waiting");
+      goPath(context.next || waitingCopy[stepId]?.next || "diagnosis");
+      return true;
+    }
+    return false;
+  }
+
   useEffect(() => {
     const startedAt = context.startedAt || Date.now();
     const tick = window.setInterval(() => {
@@ -592,12 +664,16 @@ function WaitingPage({ stepId, busy, onRefresh }) {
           if (response.job.status === "failed") {
             setJobError(response.job.error || "处理失败。");
             await onRefresh().catch(() => {});
-            goPath(context.fallback || waitingCopy[stepId]?.fallback || "diagnosis");
           }
         } else {
-          await onRefresh();
+          if (await finishIfStateReady()) return;
         }
       } catch (error) {
+        try {
+          if (await finishIfStateReady()) return;
+        } catch {
+          // Keep the original job error visible below.
+        }
         setJobError(error.message);
       }
     }
@@ -623,7 +699,27 @@ function WaitingPage({ stepId, busy, onRefresh }) {
         </div>
         <p className="waiting-reassurance" aria-live="polite">{waitMessage}</p>
         {activeTip && <div className="waiting-tip">{activeTip}</div>}
-        {jobError && <p className="waiting-error">{jobError}</p>}
+        {jobError && (
+          <div className="waiting-error-panel">
+            <strong>这一步没有处理成功</strong>
+            <p>{jobError}</p>
+            <div className="step-actions">
+              <GhostButton onClick={() => goPath(context.fallback || waitingCopy[stepId]?.fallback || "diagnosis")}>返回上一步</GhostButton>
+              <PrimaryButton
+                icon={Loader2}
+                onClick={async () => {
+                  setJobError("");
+                  const response = await api(`/jobs/${stepId}`, { method: "POST", body: JSON.stringify({}) });
+                  const nextContext = { ...context, jobId: response.job.id, startedAt: Date.now() };
+                  window.sessionStorage.setItem("career-web-waiting", JSON.stringify(nextContext));
+                  setJob(response.job);
+                }}
+              >
+                重试
+              </PrimaryButton>
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -639,20 +735,20 @@ function LandingPage() {
         <button className="nav-link" onClick={() => goTo("jd")}>分析 JD</button>
       </header>
       <section className="landing-center">
-        <p className="eyebrow">Career Asset OS</p>
+        <p className="eyebrow">职业资产工作台</p>
         <h1>
           <span>先读懂你，</span>
           <span>再开始处理简历。</span>
         </h1>
         <p className="landing-copy">
-          通过简历和一轮轮对话，把你的职业方向、项目证据、关键词和表达策略沉淀成可复用的个人知识库。
+          先帮你弄清楚适合投什么，再把经历整理成可信证据，最后生成能预览、能导出的简历。
         </p>
         <div className="landing-actions">
           <PrimaryButton icon={Sparkles} onClick={() => goTo("upload")}>
-            开始创建我的个人知识库
+            开始梳理我的职业资产
           </PrimaryButton>
           <button className="small-entry" onClick={() => goTo("jd")}>
-            已有目标岗位，先分析 JD
+            上传简历后分析 JD
           </button>
         </div>
       </section>
@@ -661,6 +757,38 @@ function LandingPage() {
 }
 
 function UploadPage({ selectedFile, setSelectedFile, resumeMeta, busy, onUpload }) {
+  const [dragActive, setDragActive] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  function acceptResumeFile(file) {
+    if (!file) return;
+    const validType = /(\.pdf|\.docx)$/i.test(file.name)
+      || file.type === "application/pdf"
+      || file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (!validType) {
+      setUploadError("目前只支持 PDF 或 DOCX 简历。");
+      setSelectedFile(null);
+      return;
+    }
+    setUploadError("");
+    setSelectedFile(file);
+  }
+
+  function handleDrag(event, active) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (busy) return;
+    setDragActive(active);
+  }
+
+  function handleDrop(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    setDragActive(false);
+    if (busy) return;
+    acceptResumeFile(event.dataTransfer?.files?.[0]);
+  }
+
   return (
     <section className="step-page upload-page">
       <div className="step-copy">
@@ -671,15 +799,27 @@ function UploadPage({ selectedFile, setSelectedFile, resumeMeta, busy, onUpload 
         </p>
       </div>
       <div className="step-card upload-panel">
-        <label className="upload-zone">
+        <label
+          className={`upload-zone${dragActive ? " is-dragging" : ""}`}
+          onDragEnter={(event) => handleDrag(event, true)}
+          onDragOver={(event) => handleDrag(event, true)}
+          onDragLeave={(event) => handleDrag(event, false)}
+          onDrop={handleDrop}
+        >
           <input
             type="file"
             accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+            onChange={(event) => acceptResumeFile(event.target.files?.[0])}
           />
           <Upload size={28} />
           <strong>{selectedFile?.name || resumeMeta?.originalName || "选择 PDF 或 DOCX 简历"}</strong>
-          <span>{selectedFile ? formatSize(selectedFile.size) : resumeMeta ? `已解析 ${resumeMeta.charCount || 0} 字` : "上传后进入初步诊断"}</span>
+          <span>
+            {uploadError || (selectedFile
+              ? formatSize(selectedFile.size)
+              : resumeMeta
+                ? `已解析 ${resumeMeta.charCount || 0} 字`
+                : "点击选择，或把文件拖到这里")}
+          </span>
         </label>
         <div className="step-actions">
           <GhostButton onClick={() => goTo("landing")}>返回</GhostButton>
@@ -735,11 +875,7 @@ function DiagnosisPage({ result, resumeMeta, busy, onRun, onAskDirection, onRunP
         <p>这些只来自简历文本，是初步线索，不是最终职业定位。下一步才会通过第一轮访谈确认。</p>
       </div>
       <div className="diagnosis-layout">
-        <article className="hero-card">
-          <Brain size={24} />
-          <h2>{result.headline || result.judgment || "当前简历已经完成初步诊断。"}</h2>
-          {result.recommendedTrack && <p>{result.recommendedTrack}</p>}
-        </article>
+        <ResumeDiagnosisCard result={result} />
         <div className="stack-list">
           {narratives.map((item, index) => (
             <article key={`${item.title || index}`} className="thin-card">
@@ -791,7 +927,7 @@ function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, re
             <span>{String(index + 1).padStart(2, "0")}</span>
             <strong>{item.question}</strong>
             <textarea
-              value={answers[item.id] || ""}
+              value={answers[item.id] || item.savedAnswer || ""}
               placeholder={item.placeholder || "写真实想法即可。"}
               readOnly={readOnly}
               onChange={(event) => setAnswers((current) => ({ ...current, [item.id]: event.target.value }))}
@@ -891,6 +1027,35 @@ function buildMirror(type, careerResult, projectResult, strategyResult) {
   };
 }
 
+function buildResumeDiagnosis(result) {
+  const diagnosis = result?.resumeDiagnosisCard || {};
+  const narratives = asArray(result?.narratives);
+  const facts = asArray(diagnosis.facts).length
+    ? asArray(diagnosis.facts)
+    : narratives.flatMap((item) => asArray(item.evidence)).filter(Boolean).slice(0, 4);
+  const starGaps = asArray(diagnosis.starGaps).length
+    ? asArray(diagnosis.starGaps)
+    : narratives.slice(0, 3).map((item) => ({
+      experience: item.title || "候选经历",
+      situation: "简历里有经历线索",
+      task: "目标和责任边界需要继续确认",
+      action: asArray(item.evidence)[0] || "行动细节需要补足",
+      result: item.risk || "结果或指标口径还不够清楚",
+      gap: item.risk || "缺少可被验证的结果、指标或角色边界"
+    }));
+  return {
+    finding: diagnosis.finding || result?.headline || result?.judgment || "简历里已经有可用经历，但还需要把项目背景、行动和结果整理成更可信的证据。",
+    facts: facts.slice(0, 4),
+    starGaps: starGaps.slice(0, 3),
+    doNext: asArray(diagnosis.doNext).length
+      ? asArray(diagnosis.doNext).slice(0, 3)
+      : asArray(result?.questions).map((item) => item.question).filter(Boolean).slice(0, 3),
+    notYet: asArray(diagnosis.notYet).length
+      ? asArray(diagnosis.notYet).slice(0, 3)
+      : asArray(result?.risks).slice(0, 3)
+  };
+}
+
 function buildAdvice(type, careerResult, projectResult, strategyResult) {
   const result = type === "direction" ? careerResult : type === "projects" ? projectResult : strategyResult;
   if (result?.adviceCard) return result.adviceCard;
@@ -916,6 +1081,40 @@ function buildAdvice(type, careerResult, projectResult, strategyResult) {
     whatToConfirm: ["顶部定位是否像你本人", "关键词顺序是否符合目标方向", "是否有数据、项目或公司信息需要脱敏"],
     whatNotToDo: ["不强行压成一页导致不可读", "不把待验证假设写成确定能力", "不把内部策略字段写进简历正文"]
   };
+}
+
+function ResumeDiagnosisCard({ result }) {
+  const diagnosis = buildResumeDiagnosis(result);
+  return (
+    <article className="resume-diagnosis-card">
+      <p className="eyebrow">简历初步诊断</p>
+      <h2>{diagnosis.finding}</h2>
+      <div className="resume-diagnosis-grid">
+        <section>
+          <span>简历里已经能看到</span>
+          {diagnosis.facts.length ? diagnosis.facts.map((item) => <p key={item}>{compactText(item, 92)}</p>) : <p>已有经历可以作为起点，但事实密度还需要继续确认。</p>}
+        </section>
+        <section>
+          <span>按 STAR 看，最缺的是</span>
+          {diagnosis.starGaps.length ? diagnosis.starGaps.map((item, index) => (
+            <p key={`${item.experience || index}`}>
+              <strong>{item.experience || "经历"}</strong>：{compactText(item.gap || item.result || item.action || "结果、指标或角色边界还不够清楚。", 104)}
+            </p>
+          )) : <p>需要补清楚背景、目标、行动和结果，尤其是结果指标和角色边界。</p>}
+        </section>
+        <section>
+          <span>现在先不要急着写成</span>
+          {diagnosis.notYet.length ? diagnosis.notYet.map((item) => <p key={item}>{compactText(item, 92)}</p>) : <p>暂时不要把兴趣、参与经历或未确认指标直接写成核心能力。</p>}
+        </section>
+      </div>
+      {diagnosis.doNext.length > 0 && (
+        <div className="next-signal resume-next">
+          <p>下一步只确认这些事实。</p>
+          <strong>{diagnosis.doNext.map((item) => compactText(item, 58)).join(" / ")}</strong>
+        </div>
+      )}
+    </article>
+  );
 }
 
 function AdviceCard({ advice }) {
@@ -1051,6 +1250,15 @@ function InsightPage({
   onRunStrategy,
   onRenderResume
 }) {
+  if (type === "direction" && !careerResult) {
+    return <GuardPage title="还没有初步诊断" text="先上传简历并完成一次初步诊断，再开始职业方向深访。" target="diagnosis" />;
+  }
+  if (type === "projects" && !projectResult) {
+    return <GuardPage title="还没有项目证据" text="先完成项目证据提炼，再查看这一轮留下来的线索。" target="projects" />;
+  }
+  if (type === "gaps" && !strategyResult) {
+    return <GuardPage title="还没有简历策略" text="先生成简历策略，再处理简历里的模糊点和公开边界。" target="resume" />;
+  }
   const mirror = buildMirror(type, careerResult, projectResult, strategyResult);
   const advice = buildAdvice(type, careerResult, projectResult, strategyResult);
   if (type === "direction") {
@@ -1058,8 +1266,8 @@ function InsightPage({
     const narratives = asArray(careerResult?.narratives).slice(0, 3);
     const action = nextActionOf(careerResult, resumeOnly ? "ask_direction_questions" : "run_project_mining");
     const nextConfig = (() => {
-      if (action === "ask_direction_questions") return { label: resumeOnly ? "开始第一轮访谈" : "继续确认职业方向", onClick: () => goTo("interview", "direction") };
       if (resumeOnly && action === "ask_direction_questions") return { label: "开始第一轮访谈", onClick: () => goTo("interview", "direction") };
+      if (!resumeOnly && action === "ask_direction_questions") return { label: "进入第二轮：确认项目证据", onClick: onRunProjects };
       if (action === "run_resume_strategy" || action === "render_resume") return { label: "直接生成简历策略", onClick: onRunStrategy };
       if (action === "ask_project_questions") return { label: "进入第二轮访谈", onClick: onRunProjects };
       if (action === "run_project_mining" || !resumeOnly) return { label: "判断项目证据", onClick: onRunProjects };
@@ -1067,13 +1275,19 @@ function InsightPage({
     })();
     return (
       <section className="solo-page">
-        <MirrorCard
-          type={type}
-          mirror={mirror}
-          title={resumeOnly ? "我们从你简历中发现的事" : "这一轮留下来的线索"}
-          onFeedback={onMirrorFeedback}
-        />
-        <AdviceCard advice={advice} />
+        {resumeOnly ? (
+          <ResumeDiagnosisCard result={careerResult} />
+        ) : (
+          <>
+            <MirrorCard
+              type={type}
+              mirror={mirror}
+              title="这一轮留下来的线索"
+              onFeedback={onMirrorFeedback}
+            />
+            <AdviceCard advice={advice} />
+          </>
+        )}
         <div className="insight-grid">
           <div className="stack-list">
             {narratives.map((item, index) => (
@@ -1224,6 +1438,8 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 }
 
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender }) {
+  const blocksRender = strategy ? strategyBlocksRender(strategy) : false;
+  const pendingQuestions = asArray(strategy?.pendingQuestions);
   return (
     <section className="solo-page">
       <div className="page-head">
@@ -1242,10 +1458,16 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
         </article>
         <article className="hero-card light">
           <Globe2 size={24} />
-          <h2>{artifacts?.resumeHtml ? "简历预览已生成" : "生成 HTML 预览"}</h2>
-          <p>{renderResult?.findings?.length ? renderResult.findings.join(" / ") : "生成后检查排版和导出文件。"}</p>
-          <PrimaryButton icon={busy ? Loader2 : FileText} onClick={onRender} disabled={busy}>
-            生成预览和 PDF
+          <h2>{artifacts?.resumeHtml ? "简历预览已生成" : blocksRender ? "先确认缺口" : "生成 HTML 预览"}</h2>
+          <p>
+            {blocksRender
+              ? pendingQuestions.slice(0, 2).join(" / ") || "还有角色边界、指标口径或公开边界需要确认。"
+              : renderResult?.findings?.length
+                ? renderResult.findings.join(" / ")
+                : "生成后检查排版和导出文件。"}
+          </p>
+          <PrimaryButton icon={busy ? Loader2 : FileText} onClick={blocksRender ? () => goTo("interview", "gaps") : onRender} disabled={busy || !strategy}>
+            {blocksRender ? "进入第三轮确认" : "生成预览和 PDF"}
           </PrimaryButton>
         </article>
       </div>
@@ -1339,16 +1561,18 @@ function App() {
   async function loadState() {
     const next = await api("/state");
     setState(next);
+    return next;
   }
 
   async function resetFlow() {
-    const confirmed = window.confirm("重置后会保留已上传简历，但清空本轮诊断、回答、项目卡、简历策略和导出预览。确定重置吗？");
+    const confirmed = window.confirm("重置后会清空当前简历、诊断、回答、项目卡、简历策略和导出预览，重新回到上传页。确定重置吗？");
     if (!confirmed) return;
     setBusy(true);
     setStatus("正在重置流程...");
     try {
       const result = await api("/reset", { method: "POST", body: JSON.stringify({}) });
       window.sessionStorage.removeItem("career-web-waiting");
+      setSelectedFile(null);
       setAnswers({});
       setAnswersHydrated(false);
       setJdInput("");
@@ -1357,7 +1581,7 @@ function App() {
       setProjectsHydrated(false);
       await loadState();
       setStatus("流程已重置。");
-      goTo(result.resumeMeta ? "diagnosis" : "upload");
+      goTo("upload");
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -1398,10 +1622,13 @@ function App() {
   }, [state?.intake?.jd, jdHydrated]);
 
   useEffect(() => {
-    if (projectsHydrated || !state?.projectCards) return;
-    setProjectDrafts(state.projectCards);
-    setProjectsHydrated(true);
-  }, [state?.projectCards, projectsHydrated]);
+    if (!state?.projectCards) return;
+    const incoming = state.projectCards;
+    if (!projectsHydrated || (incoming.length > 0 && projectDrafts.length === 0)) {
+      setProjectDrafts(incoming);
+      setProjectsHydrated(true);
+    }
+  }, [state?.projectCards, projectsHydrated, projectDrafts.length]);
 
   const careerResult = state?.llmResults?.career_direction?.result || null;
   const projectResult = state?.llmResults?.project_mining?.result || null;
@@ -1414,13 +1641,18 @@ function App() {
   const activeRound = interviewRounds[activeRoundKey] || interviewRounds.direction;
 
   const interviewQuestions = useMemo(() => {
+    const readOnly = isRouteReadOnly(route, state);
     if (activeRoundKey === "projects") {
       const dynamic = projectQuestionsFromResult(projectResult);
-      return dynamic.length ? dynamic : projectQuestionFallback;
+      const questions = dynamic.length ? dynamic : projectQuestionFallback;
+      const saved = readOnly ? savedQuestionsForRound(state, activeRoundKey, questions) : [];
+      return saved.length ? saved : questions;
     }
     if (activeRoundKey === "gaps") {
       const dynamic = gapQuestionsFromResult(strategyResult);
-      return dynamic.length ? dynamic : gapQuestionFallback;
+      const questions = dynamic.length ? dynamic : gapQuestionFallback;
+      const saved = readOnly ? savedQuestionsForRound(state, activeRoundKey, questions) : [];
+      return saved.length ? saved : questions;
     }
     const dynamic = asArray(careerResult?.questions)
       .slice(0, 3)
@@ -1430,8 +1662,10 @@ function App() {
         placeholder: item.why || "写真实想法即可。"
       }))
       .filter((item) => item.question);
-    return dynamic.length ? dynamic : questionFallback;
-  }, [activeRoundKey, careerResult, projectResult]);
+    const questions = dynamic.length ? dynamic : questionFallback;
+    const saved = readOnly ? savedQuestionsForRound(state, activeRoundKey, questions) : [];
+    return saved.length ? saved : questions;
+  }, [activeRoundKey, careerResult, projectResult, route, state, strategyResult]);
 
   const activeProject = projectDrafts.find((item) => item.id === route.id);
 
@@ -1488,16 +1722,20 @@ function App() {
     }
   }
 
-  function buildAnswerPayload(currentQuestions) {
+  function buildAnswerPayload(currentQuestions, roundKey) {
     const questionMap = new Map(
       [...questionFallback, ...projectQuestionFallback, ...gapQuestionFallback, ...currentQuestions].map((item) => [item.id, item.question])
     );
-    const ids = new Set([...Object.keys(answers), ...currentQuestions.map((item) => item.id)]);
-    return Array.from(ids).map((id) => ({
-      id,
-      question: questionMap.get(id) || id,
-      answer: answers[id] || ""
-    }));
+    const merged = new Map(savedAnswersList(state?.intake?.careerDirectionAnswersJson).map((item) => [item.id, { ...item }]));
+    for (const item of currentQuestions) {
+      merged.set(item.id, {
+        id: item.id,
+        round: roundKey,
+        question: questionMap.get(item.id) || item.question || item.id,
+        answer: answers[item.id] || item.savedAnswer || ""
+      });
+    }
+    return Array.from(merged.values());
   }
 
   async function runStep(stepId, nextView, fallbackView, waitingOverrides = {}) {
@@ -1535,13 +1773,18 @@ function App() {
   }
 
   async function saveInterviewRound() {
+    const unanswered = interviewQuestions.filter((item) => !String(answers[item.id] || item.savedAnswer || "").trim());
+    if (unanswered.length) {
+      setStatus("请先回答当前页的问题，再继续。可以写“不确定”或“暂时没有”，但不要空着。");
+      return;
+    }
     setBusy(true);
     setStatus("正在保存回答...");
     try {
       await api("/intake/career-direction-answers", {
         method: "POST",
         body: JSON.stringify({
-          answers: buildAnswerPayload(interviewQuestions)
+          answers: buildAnswerPayload(interviewQuestions, activeRoundKey)
         })
       });
       const response = await api(`/jobs/${activeRound.stepId}`, { method: "POST", body: JSON.stringify({}) });
@@ -1607,7 +1850,7 @@ function App() {
   if (route.view === "landing") return <LandingPage />;
 
   return (
-    <StepShell view={route.view} status={status} busy={busy} onReset={resetFlow} state={state}>
+    <StepShell view={route.view} routeId={route.id} status={status} busy={busy} onReset={resetFlow} state={state}>
       {route.view === "upload" && (
         <UploadPage
           selectedFile={selectedFile}

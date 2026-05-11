@@ -34,7 +34,10 @@ function cleanBulletText(value) {
 function parseCandidateName(resumeMeta, resumeText) {
   if (resumeMeta?.candidateName) return resumeMeta.candidateName;
   const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
-  const first = lines.find((line) => !/@|电话|手机|邮箱|微信|GitHub|http/i.test(line));
+  const first = lines.find((line) =>
+    line.length <= 24 &&
+    !/@|电话|手机|邮箱|微信|GitHub|http|个人简介|求职|工作经历|项目经历|教育经历|技能|Experience|Projects|Education/i.test(line)
+  );
   return first || "候选人";
 }
 
@@ -44,7 +47,7 @@ function extractContacts(resumeText) {
   const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
   const phone = text.match(/(?:\+?86[-\s]?)?1[3-9]\d{9}/)?.[0];
   const github = text.match(/(?:https?:\/\/)?github\.com\/[A-Za-z0-9_-]+/i)?.[0];
-  const site = text.match(/(?:https?:\/\/)?(?:www\.)?[A-Za-z0-9-]+\.(?:com|cn|ltd|io|dev)(?:\/[^\s，。｜|]*)?/i)?.[0];
+  const site = text.match(/(?:https?:\/\/|www\.)[A-Za-z0-9-]+\.(?:com|cn|ltd|io|dev)(?:\/[^\s，。｜|]*)?/i)?.[0];
   if (site && !/github\.com/i.test(site)) contacts.push(["作品集", site.replace(/^https?:\/\//i, "")]);
   if (phone) contacts.push(["手机", phone]);
   if (email) contacts.push(["邮箱", email]);
@@ -56,6 +59,58 @@ function bulletTitle(text) {
   const match = String(text || "").match(/^(.{2,24}?)[：:]\s*(.+)$/);
   if (!match) return ["", text];
   return [match[1], match[2]];
+}
+
+function normalizePublicResume(publicResume) {
+  if (!publicResume || typeof publicResume !== "object") return null;
+  const hasContent = Boolean(
+    publicResume.headline ||
+      publicResume.header?.name ||
+      (Array.isArray(publicResume.summary) && publicResume.summary.length) ||
+      (Array.isArray(publicResume.experiences) && publicResume.experiences.length) ||
+      (Array.isArray(publicResume.projects) && publicResume.projects.length)
+  );
+  return hasContent ? publicResume : null;
+}
+
+function publicResumeToBullets(publicResume) {
+  const bullets = [];
+  for (const text of Array.isArray(publicResume.summary) ? publicResume.summary : []) {
+    bullets.push({ section: "个人简介", text });
+  }
+  for (const item of Array.isArray(publicResume.experiences) ? publicResume.experiences : []) {
+    const prefix = [item.title, item.period].filter(Boolean).join(" ｜ ");
+    for (const bullet of Array.isArray(item.bullets) ? item.bullets : []) {
+      bullets.push({ section: "工作经历", text: prefix ? `${prefix}：${bullet}` : bullet });
+    }
+  }
+  for (const item of Array.isArray(publicResume.projects) ? publicResume.projects : []) {
+    for (const bullet of Array.isArray(item.bullets) ? item.bullets : []) {
+      bullets.push({ section: "项目经历", text: item.title ? `${item.title}：${bullet}` : bullet });
+    }
+  }
+  for (const text of Array.isArray(publicResume.skills) ? publicResume.skills : []) {
+    bullets.push({ section: "核心能力", text });
+  }
+  for (const item of Array.isArray(publicResume.works) ? publicResume.works : []) {
+    const text = typeof item === "string" ? item : [item.title, item.description].filter(Boolean).join("：");
+    bullets.push({ section: "个人作品", text });
+  }
+  for (const text of Array.isArray(publicResume.education) ? publicResume.education : []) {
+    bullets.push({ section: "教育经历", text });
+  }
+  return bullets.filter((item) => cleanBulletText(item.text));
+}
+
+function normalizeContacts(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      if (typeof item === "string") return ["", item];
+      return [item.label || item.type || "", item.value || item.text || item.url || ""];
+    })
+    .filter(([, text]) => text)
+    .slice(0, 4);
 }
 
 function sectionItems(grouped, names) {
@@ -77,8 +132,23 @@ function renderBulletList(items) {
   }).join("")}</ul>`;
 }
 
+function renderEntries(entries) {
+  const values = Array.isArray(entries) ? entries.filter(Boolean) : [];
+  if (!values.length) return "";
+  return values.map((entry) => {
+    const title = [entry.title, entry.period].filter(Boolean).join(" ｜ ");
+    const bullets = Array.isArray(entry.bullets) ? entry.bullets.map(cleanBulletText).filter(Boolean).slice(0, 4) : [];
+    if (!title && !bullets.length) return "";
+    return `<article class="entry">
+      ${title ? `<div class="entry-head"><strong>${escapeHtml(title)}</strong></div>` : ""}
+      ${renderBulletList(bullets)}
+    </article>`;
+  }).filter(Boolean).join("");
+}
+
 export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining, resumeMeta, resumeText }) {
-  const bullets = Array.isArray(resumeStrategy?.bullets) ? resumeStrategy.bullets : [];
+  const publicResume = normalizePublicResume(resumeStrategy?.publicResume);
+  const bullets = publicResume ? publicResumeToBullets(publicResume) : (Array.isArray(resumeStrategy?.bullets) ? resumeStrategy.bullets : []);
   const grouped = bullets.reduce((acc, item) => {
     const section = normalizeSectionName(item.section);
     acc[section] ||= [];
@@ -93,20 +163,25 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
     .filter(Boolean)
     .slice(0, 5);
 
-  const candidateName = parseCandidateName(resumeMeta, resumeText);
-  const contacts = extractContacts(resumeText);
-  const summary = resumeStrategy?.positioning || careerDirection?.recommendedTrack || careerDirection?.headline || "职业定位待确认";
-  const intro = resumeStrategy?.professionalSummary || resumeStrategy?.summary || "";
+  const candidateName = publicResume?.header?.name || parseCandidateName(resumeMeta, resumeText);
+  const contacts = normalizeContacts(publicResume?.header?.contacts);
+  const fallbackContacts = contacts.length ? contacts : extractContacts(resumeText);
+  const summary = publicResume?.headline || resumeStrategy?.positioning || careerDirection?.recommendedTrack || careerDirection?.headline || "职业定位待确认";
+  const intro = publicResume ? "" : (resumeStrategy?.professionalSummary || resumeStrategy?.summary || "");
   const introItems = sectionItems(grouped, ["个人简介"]);
   const workItems = sectionItems(grouped, ["工作经历"]);
   const projectItems = sectionItems(grouped, ["项目经历"]);
+  const structuredWorkItems = publicResume && Array.isArray(publicResume.experiences) ? publicResume.experiences : [];
+  const structuredProjectItems = publicResume && Array.isArray(publicResume.projects) ? publicResume.projects : [];
   const abilityItems = sectionItems(grouped, ["核心能力"]);
   const educationItems = sectionItems(grouped, ["教育经历"]);
   const portfolioItems = sectionItems(grouped, ["代表作品", "个人作品"]);
   const remainingItems = Object.entries(grouped)
     .filter(([section]) => !["个人简介", "工作经历", "项目经历", "核心能力", "教育经历", "代表作品", "个人作品"].includes(section))
     .flatMap(([, items]) => items);
-  const mainExperienceItems = [...workItems, ...projectItems];
+  const fallbackProjectItems = projectItems.length
+    ? renderBulletList(projectItems)
+    : (fallbackProjectBullets.length ? renderBulletList(fallbackProjectBullets) : "");
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -164,6 +239,10 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
     .chip { padding: 3px 7px; border-radius: 999px; background: #e8f6f3; color: #0f766e; font-size: 12px; font-weight: 800; }
     .work-list { display: grid; gap: 10px; padding-left: 0; list-style: none; }
     .work-list li { margin: 0; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: linear-gradient(180deg, #fff, var(--soft)); }
+    .entry { margin: 0 0 14px; break-inside: avoid; }
+    .entry:last-child { margin-bottom: 0; }
+    .entry-head { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 7px; color: var(--ink); font-size: 14.5px; line-height: 1.35; }
+    .entry-head strong { font-weight: 900; }
     .education { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--soft); }
     .note { color: var(--subtle); font-size: 12px; margin: 0; }
     @media print {
@@ -179,13 +258,14 @@ export function buildResumeHtml({ resumeStrategy, careerDirection, projectMining
     <header>
       <div class="header-top">
         <h1>${escapeHtml(candidateName)}</h1>
-        <div class="contacts">${contacts.map(([label, value]) => `<span><strong>${escapeHtml(label)}</strong> ${escapeHtml(value)}</span>`).join("")}</div>
+        <div class="contacts">${fallbackContacts.map(([label, value]) => `<span>${label ? `<strong>${escapeHtml(label)}</strong> ` : ""}${escapeHtml(value)}</span>`).join("")}</div>
       </div>
       <p class="headline">${escapeHtml(summary)}</p>
     </header>
     ${keywordOrder.length ? `<section><div class="chips">${keywordOrder.map((item) => `<span class="chip">${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
     ${(intro || introItems.length || abilityItems.length) ? `<section>${renderSectionTitle("个人简介")}${intro ? `<p>${escapeHtml(intro)}</p>` : ""}${renderBulletList([...introItems, ...abilityItems])}</section>` : ""}
-    ${(mainExperienceItems.length || fallbackProjectBullets.length) ? `<section>${renderSectionTitle(mainExperienceItems.length && !projectItems.length ? "工作经历" : "项目经历")}<article class="job">${renderBulletList(mainExperienceItems.length ? mainExperienceItems : fallbackProjectBullets)}</article></section>` : ""}
+    ${(structuredWorkItems.length || workItems.length) ? `<section>${renderSectionTitle("工作经历")}<div class="job">${structuredWorkItems.length ? renderEntries(structuredWorkItems) : renderBulletList(workItems)}</div></section>` : ""}
+    ${(structuredProjectItems.length || projectItems.length || fallbackProjectBullets.length) ? `<section>${renderSectionTitle("重点项目")}<div class="job">${structuredProjectItems.length ? renderEntries(structuredProjectItems) : fallbackProjectItems}</div></section>` : ""}
     ${remainingItems.length ? `<section>${renderSectionTitle("其他经历")}${renderBulletList(remainingItems)}</section>` : ""}
     ${portfolioItems.length ? `<section>${renderSectionTitle("个人作品")}${renderBulletList(portfolioItems).replace("<ul>", "<ul class=\"work-list\">")}</section>` : ""}
     ${educationItems.length ? `<section>${renderSectionTitle("教育经历")}<div class="education">${educationItems.map((item) => escapeHtml(item.text)).join("<br>")}</div></section>` : ""}
@@ -249,5 +329,9 @@ export function inspectResumeHtml(html) {
   if (!/print-color-adjust|webkit-print-color-adjust/i.test(html)) findings.push("Missing print color adjustment.");
   if (/font-size\s*:\s*(?:[0-9](?:\.\d+)?px|1[01](?:\.\d+)?px)\b/i.test(html)) findings.push("Possible unreadable small font size.");
   if (/height\s*:\s*100vh/i.test(html)) findings.push("100vh can cause PDF page break problems.");
+  const forbidden = ["pendingQuestions", "layoutNotes", "项目排序", "待确认问题", "版式注意", "项目证据补强", "内部策略", "riskFlags"];
+  for (const term of forbidden) {
+    if (html.includes(term)) findings.push(`Blocking internal resume field leaked: ${term}`);
+  }
   return findings;
 }

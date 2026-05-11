@@ -68,9 +68,11 @@ const systemPrompt = `你是“职业资产工作台”的 AI worker，不是普
 11. 不要把抽象总结工作交给用户。不要问“你的核心能力是什么”这类问题；应该先给出 AI 的假设，再让用户确认、纠偏或补证据。
 12. 每轮最多提出 3 个核心问题。问题要深入，但不能把用户拖进长问卷。
 13. 问答不是必经流程。每轮都必须判断信息是否已经足够；足够就跳过提问，直接建议下一步动作。
-14. 输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释 schema。`;
+14. 严禁升级角色边界：简历只写“推动/参与/负责”时，不能改写成“主导/Owner/负责人/从0到1”。只有原文或用户回答明确说主导，才可以用主导。
+15. 严禁使用“专家、资深、领军、顶尖、优秀、有潜力”等吹捧词。候选叙事必须是职业方向或证据组合，不是夸张头衔。
+16. 输出必须是严格 JSON，不要 Markdown，不要代码块，不要解释 schema。`;
 
-const mirrorCardSchema = `"mirrorCard": {
+const mirrorCardFields = `{
     "hit": "一句命中句。用自然语言说出用户没说清楚的深层问题，不要贴人格标签。",
     "tension": "指出用户当前表达里的拉扯或矛盾。",
     "workPattern": "描述一个正在浮现的做事方式，用场景化语言，不用抽象标签开头。",
@@ -78,6 +80,8 @@ const mirrorCardSchema = `"mirrorCard": {
     "nextValidation": "下一步只验证一件具体的事，让用户觉得不是被盘问，而是在一起避免误判。",
     "feedbackOptions": ["如果用户点“不完全是”，给 3-5 个本轮最可能的偏差选项，必须结合本轮内容，不要写固定通用选项。"]
   }`;
+
+const mirrorCardSchema = `"mirrorCard": ${mirrorCardFields}`;
 
 const mirrorCardInstruction = `镜像卡写作要求：
 - 目标不是“分析用户”，而是让用户感觉“我刚才没说清楚的点被说中了”。
@@ -88,6 +92,22 @@ const mirrorCardInstruction = `镜像卡写作要求：
 - evidenceBoundary 必须保持可信：哪些现在还不能写成简历优势，缺什么证据。
 - nextValidation 要把下一轮问题包装成“共同避免误判”的验证点。
 - feedbackOptions 必须根据本轮内容生成，不允许固定写“不是方向问题/不是想转行”等通用模板。`;
+
+const resumeDiagnosisCardSchema = `"resumeDiagnosisCard": {
+    "finding": "只基于简历文本得出的核心发现。不能写“你刚才说”“你表达了”“拉扯”等对话语言。",
+    "facts": ["简历中已经能看见的事实，最多 4 条"],
+    "starGaps": [{"experience":"对应经历或项目","situation":"背景是否清楚","task":"目标/责任是否清楚","action":"行动是否清楚","result":"结果/指标是否清楚","gap":"按 STAR 看最缺什么"}],
+    "doNext": ["基于简历诊断，下一步最应该确认的事实，最多 3 条"],
+    "notYet": ["现在还不应该急着写成的结论或标签，最多 3 条"]
+  }`;
+
+const resumeDiagnosisInstruction = `简历初诊卡要求：
+- 只在用户还没有回答第一轮访谈问题时使用。此时只有简历输入，没有对话。
+- 只能写“简历里显示/能看到/暂时看不清”，不能写“你刚才说”“你提到”“这里有拉扯”“你的真实张力”等话术。
+- 核心方法是 STAR：Situation 背景、Task 任务/目标、Action 行动、Result 结果。指出哪些经历已有事实，哪些缺目标、动作、结果或指标口径。
+- 可以给初步候选方向，但必须明确它只是“基于简历的假设”，不能说成用户真实意愿。
+- 如果没有用户回答，mirrorCard 可以返回 null；不要强行输出共鸣式镜像卡。
+- 初诊里不要把“推动/参与/负责”升级成“主导”。不要使用“专家/资深/领军”等评价词。`;
 
 const adviceCardSchema = `"adviceCard": {
     "recommendation": "这一轮给用户的明确建议。必须基于已知事实和待验证假设，不要空泛鼓励。",
@@ -125,10 +145,20 @@ const readinessInstruction = `信息充足度判断要求：
   - render_resume：简历策略也已经足够明确，建议进入预览/导出。
 - 不要为了流程完整而强制问。每一个问题都要有必要性。`;
 
+const questionSchemaInstruction = `问题结构要求：
+- questions 最多 3 条。每一条都必须阻塞一个明确决策，不能为了聊天而问。
+- 不要问“你的核心优势是什么”“你想怎么包装自己”这类抽象问题。
+- 优先锚定一个简历里的具体项目、经历、指标或角色边界；如果确实没有可锚定内容，才问偏好或约束。
+- 每个问题都必须包含：id、question、why、relatedAssetField、blocksWhichDecision、expectedAnswerType、evidenceAnchor、isRequired。
+- relatedAssetField 只能是 profile、directions、keywords、projects、skillsEvidence、resumeStories、publicBoundary 之一。
+- expectedAnswerType 只能是 fact、metric、preference、constraint、boundary、correction 之一。`;
+
 const resumeOutputInstruction = `正式简历输出要求：
 - 这是给用户预览和导出 PDF 的简历内容，不是策略报告。
 - bullets 只能使用这些 section：个人简介、工作经历、项目经历、核心能力、个人作品、教育经历。
 - 不要把“项目排序、待确认问题、版式注意、项目证据补强、风险、layoutNotes、pendingQuestions”等内部字段写进 bullets.text。
+- 必须额外输出 publicResume。publicResume 是渲染 HTML/PDF 的唯一优先来源，只能包含可展示字段，不能包含风险、待确认问题、内部排序、调试说明。
+- 如果某个 claim 还出现在 questions 或 pendingQuestions 中，publicResume 和 bullets 里不能把它写成事实；必须降级为更保守的表述，或暂时不写。
 - 每条 bullet 尽量采用“有意义的结果/变化 -> 关键动作 -> 能力证明”的顺序。
 - 指标必须可信。没有结果指标时写过程指标、质量指标或复杂度证据；仍不足时宁可弱化，也不要编数字。
 - 可以保留 pendingQuestions 和 layoutNotes 字段给系统内部使用，但它们不会进入正式简历 HTML。
@@ -169,12 +199,25 @@ ${context.jdText || ""}
 ${context.websiteBrief || ""}`;
 }
 
+function hasSubstantiveCareerAnswers(context) {
+  try {
+    const parsed = JSON.parse(context.careerAnswersJson || "{}");
+    return Array.isArray(parsed.answers) && parsed.answers.some((item) => String(item.answer || "").trim() && item.answer !== "未回答");
+  } catch {
+    return String(context.careerAnswers || "")
+      .split("\n")
+      .some((line) => line.trim() && !/^#|Saved at:|未回答|- Round:/i.test(line.trim()));
+  }
+}
+
 const prompts = {
-  career_direction: (context) => [
-    { role: "system", content: systemPrompt },
-    {
-      role: "user",
-      content: `${baseUserContext(context)}
+  career_direction: (context) => {
+    const hasAnswers = hasSubstantiveCareerAnswers(context);
+    return [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: `${baseUserContext(context)}
 
 你正在执行第一轮：职业方向深访。
 
@@ -186,6 +229,10 @@ const prompts = {
 5. 结合互联网产品、运营/增长、程序员/技术建设者、AI、游戏、管理相邻岗位，给 2-4 个候选职业叙事。
 6. 本轮不要生成最终简历，不要做 JD fit，不要建议个人网站结构。
 
+输出卡片选择：
+- 如果 # 用户职业方向回答 为空或只有未回答内容：这是“简历解析后的初诊”，必须输出 resumeDiagnosisCard，mirrorCard 必须为 null。
+- 如果 # 用户职业方向回答 已经包含用户真实回答：这是“第一轮访谈后的反馈”，必须输出 mirrorCard；resumeDiagnosisCard 可以继续保留简短事实诊断，但界面不会把它当作主反馈。
+
 只有信息不足时，才追问这些方向：
 - 当前主职业身份是什么，继续当前职业轨道是否可行。
 - 用户想靠近的工作方式是什么，不想回到的工作状态是什么。
@@ -193,12 +240,15 @@ const prompts = {
 - 哪些经历是用户做过但不想再被定义的身份。
 - 哪些方向有兴趣但证据还不足。
 
-${mirrorCardInstruction}
+${hasAnswers ? mirrorCardInstruction : ""}
+${resumeDiagnosisInstruction}
 ${adviceCardInstruction}
 ${readinessInstruction}
+${questionSchemaInstruction}
 
 输出 JSON：
 {
+  ${resumeDiagnosisCardSchema},
   ${mirrorCardSchema},
   ${adviceCardSchema},
   ${readinessSchema},
@@ -207,7 +257,7 @@ ${readinessInstruction}
   "recommendedTrack": "当前最建议优先验证的方向；优先说明是否延续当前职业轨道。",
   "narratives": [{"title":"候选主叙事","confidence":"high|medium|low","evidence":["简历或回答中的证据"],"risk":"风险、缺口或可能误判"}],
   "risks": ["必须确认的风险点，尤其是预设困难、真实约束、证据不足和用户反偏好"],
-  "questions": [{"id":"snake_case","question":"只有信息不足时才问。最多 3 条。必须基于你已经提出的假设，让用户确认、纠偏或补事实。问题要温柔、具体、能帮助用户更了解自己。","why":"为什么要问；说明它在验证什么误判"}],
+  "questions": [{"id":"snake_case","question":"只有信息不足时才问。最多 3 条。必须基于你已经提出的假设，让用户确认、纠偏或补事实。问题要温柔、具体、能帮助用户更了解自己。","why":"为什么要问；说明它在验证什么误判","relatedAssetField":"directions","blocksWhichDecision":"是否继续当前职业轨道或验证转向","expectedAnswerType":"preference","evidenceAnchor":"来自简历或回答的锚点","isRequired":true}],
   "assetUpdates": {
     "profile": "建议写入用户画像的要点：偏好、反偏好、约束、当前轨道/转向假设",
     "directions": "建议写入方向排序的要点：高确定性、成长、探索、降级方向",
@@ -215,8 +265,9 @@ ${readinessInstruction}
   },
   "nextStep": "下一步建议"
 }`
-    }
-  ],
+      }
+    ];
+  },
   project_mining: (context) => [
     { role: "system", content: systemPrompt },
     {
@@ -244,13 +295,14 @@ ${readinessInstruction}
 ${mirrorCardInstruction}
 ${adviceCardInstruction}
 ${readinessInstruction}
+${questionSchemaInstruction}
 
 输出 JSON：
 {
   ${mirrorCardSchema},
   ${adviceCardSchema},
   ${readinessSchema},
-  "questions": [{"id":"snake_case","question":"只有项目证据不足时才问。最多 3 条。必须让用户补事实、角色边界、前后变化、关键取舍或可公开边界。","why":"为什么要问；说明它在验证什么证据缺口"}],
+  "questions": [{"id":"snake_case","question":"只有项目证据不足时才问。最多 3 条。必须让用户补事实、角色边界、前后变化、关键取舍或可公开边界。","why":"为什么要问；说明它在验证什么证据缺口","relatedAssetField":"projects","blocksWhichDecision":"项目是否可以写成可信简历证据","expectedAnswerType":"fact","evidenceAnchor":"具体项目或经历名","isRequired":true}],
   "headline": "项目素材当前质量判断",
   "priorityProjects": [{"name":"项目名","priority":"P0|P1|P2","why":"为什么值得写","missing":["缺失证据"],"questions":["需要追问的问题"]}],
   "metricPlan": [{"project":"项目名","resultMetrics":["结果指标"],"processMetrics":["过程指标"],"qualityMetrics":["质量指标"]}],
@@ -281,19 +333,30 @@ ${resumeOutputInstruction}
 ${mirrorCardInstruction}
 ${adviceCardInstruction}
 ${readinessInstruction}
+${questionSchemaInstruction}
 
 输出 JSON：
 {
   ${mirrorCardSchema},
   ${adviceCardSchema},
   ${readinessSchema},
-  "questions": [{"id":"snake_case","question":"只有简历策略缺口仍不足时才问。最多 3 条。必须让用户确认模糊点、数据口径、角色边界、公开边界或表达取舍。","why":"为什么要问；说明它会影响简历里的哪类表达"}],
+  "questions": [{"id":"snake_case","question":"只有简历策略缺口仍不足时才问。最多 3 条。必须让用户确认模糊点、数据口径、角色边界、公开边界或表达取舍。","why":"为什么要问；说明它会影响简历里的哪类表达","relatedAssetField":"resumeStories","blocksWhichDecision":"是否允许生成正式简历预览","expectedAnswerType":"boundary","evidenceAnchor":"具体 bullet、项目或指标口径","isRequired":true}],
   "headline": "简历策略一句话",
   "positioning": "简历顶部 headline，一句话说明职业身份、方向和差异化证据",
   "professionalSummary": "可选。简历顶部或个人简介中的 1-2 句概括，必须克制可信",
   "keywordOrder": ["简历中可以展示的关键词，按重要性排序"],
   "projectOrder": ["内部使用的项目优先级，不要把“项目排序”作为简历标题输出"],
   "bullets": [{"section":"个人简介|工作经历|项目经历|核心能力|个人作品|教育经历","text":"正式简历 bullet。只写可展示内容，不写内部风险提示","evidence":"对应证据","risk":"内部风险提示，仅给系统，不进入 HTML"}],
+  "publicResume": {
+    "header": {"name":"候选人姓名，如无法确定可为空","contacts":["邮箱/手机/GitHub/作品集，只放可展示内容"]},
+    "headline": "正式简历顶部职业定位",
+    "summary": ["个人简介 bullet，只放可展示事实"],
+    "experiences": [{"title":"公司/岗位/项目组","period":"时间，可为空","bullets":["工作经历 bullet"]}],
+    "projects": [{"title":"项目名","bullets":["项目经历 bullet"]}],
+    "skills": ["核心能力关键词或能力 bullet"],
+    "works": [{"title":"作品名","description":"个人作品说明"}],
+    "education": ["教育经历"]
+  },
   "selfIntroduction": "30-60秒自我介绍",
   "starStories": [{"project":"项目","situation":"背景","task":"任务","action":"行动","result":"结果"}],
   "layoutNotes": ["版式注意点"],

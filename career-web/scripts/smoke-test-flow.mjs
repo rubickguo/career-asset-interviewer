@@ -58,6 +58,16 @@ async function pollJob(jobId) {
   throw new Error(`Job timed out: ${jobId}`);
 }
 
+async function pollJobStatus(jobId) {
+  const started = Date.now();
+  while (Date.now() - started < 70000) {
+    const { data } = await request(`/api/jobs/${jobId}`);
+    if (["done", "failed"].includes(data.job.status)) return data.job;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`Job timed out: ${jobId}`);
+}
+
 async function main() {
   const appSource = await fs.readFile(path.join(rootDir, "src/App.jsx"), "utf8");
   assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化"], "App source");
@@ -66,6 +76,9 @@ async function main() {
   assert.match(appSource, /下一步怎么处理/);
   assert.match(appSource, /insight-action/);
   assert.match(appSource, /我们从你简历中发现的事/);
+  assert.match(appSource, /简历初步诊断/);
+  assert.match(appSource, /按 STAR 看，最缺的是/);
+  assert.match(appSource, /resumeOnly \? \(/);
   assert.match(appSource, /正在阅读你的简历/);
   assert.match(appSource, /开始第一轮访谈/);
   assert.match(appSource, /判断项目证据/);
@@ -75,6 +88,10 @@ async function main() {
   assert.match(appSource, /readOnly=\{readOnly\}/);
   assert.match(appSource, /projectItemsFromResult/);
   assert.match(appSource, /查看项目证据/);
+  assert.match(appSource, /请先回答当前页的问题/);
+  assert.match(appSource, /savedQuestionsForRound/);
+  assert.match(appSource, /上传简历后分析 JD/);
+  assert.match(appSource, /waiting-error-panel/);
   assertNotIncludes(appSource, ["先看初步判断", "继续深访", "整理项目线索", "回去调整", "每个重点项目，最后有哪些可以被别人相信的变化", "progressWidth"], "App source");
 
   const rendererSource = await fs.readFile(path.join(rootDir, "server/renderers.js"), "utf8");
@@ -96,7 +113,20 @@ async function main() {
   assert.match(workflowSource, /问答不是必经流程/);
   assert.match(workflowSource, /recommendedNextAction/);
   assert.match(workflowSource, /adviceCard/);
+  assert.match(workflowSource, /resumeDiagnosisCard/);
+  assert.match(workflowSource, /只有简历输入，没有对话/);
+  assert.match(workflowSource, /不能写“你刚才说”“你提到”“这里有拉扯”/);
+  assert.equal(workflowSource.includes("null 或"), false, "workflow prompt must not contain invalid JSON schema wording");
+  assert.match(workflowSource, /questionSchemaInstruction/);
+  assert.match(workflowSource, /relatedAssetField/);
+  assert.match(workflowSource, /blocksWhichDecision/);
+  assert.match(workflowSource, /publicResume/);
   assertNotIncludes(workflowSource, ["你是一个客观、知性的职业发展分析助手"], "workflow prompt");
+
+  const serverSource = await fs.readFile(path.join(rootDir, "server/index.js"), "utf8");
+  assert.match(serverSource, /fallbackMirrorCard/);
+  assert.match(serverSource, /sanitizeUnconfirmedRoleClaims/);
+  assert.match(serverSource, /简历解析出的文字太少/);
 
   const landing = await request("/");
   assert.match(landing.text, /<div id="root"><\/div>/);
@@ -117,7 +147,16 @@ async function main() {
   const feedbackText = await fs.readFile(path.join(workspaceDir, "intake/mirror-feedback.md"), "utf8");
   assert.match(feedbackText, /这里低估了我已有的产品判断/);
 
-  await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), {
+  await assert.rejects(
+    request("/api/intake/career-direction-answers", {
+      method: "POST",
+      body: JSON.stringify({ answers: [{ id: "empty", question: "空问题", answer: "" }] })
+    }),
+    /至少回答一个问题/,
+    "empty interview answers must be rejected"
+  );
+
+  const resumeMetaFixture = {
     originalName: "anonymous-engineer-resume.docx",
     storedName: "resume-original.docx",
     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -128,16 +167,29 @@ async function main() {
     pageCount: 1,
     charCount: 420,
     warnings: []
-  });
-  await writeText(
-    path.join(workspaceDir, "uploads/resume-extracted.txt"),
-    [
-      "匿名候选人",
-      "邮箱：test@example.com ｜ 手机：18600000000",
-      "GitHub：https://github.com/example ｜ 个人网站：https://example.dev",
-      "后端/工具工程师，3 年经验。做过内部自动化、权限系统重构、线上稳定性治理和个人工具。"
-    ].join("\n")
+  };
+  const resumeTextFixture = [
+    "匿名候选人",
+    "邮箱：test@example.com ｜ 手机：18600000000",
+    "GitHub：https://github.com/example ｜ 个人网站：https://example.dev",
+    "后端/工具工程师，3 年经验。做过内部自动化、权限系统重构、线上稳定性治理和个人工具。"
+  ].join("\n");
+
+  await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
+  await writeText(path.join(workspaceDir, "uploads/resume-extracted.txt"), resumeTextFixture);
+
+  const resetResult = await request("/api/reset", { method: "POST", body: "{}" });
+  assert.equal(resetResult.data.resumeMeta, null, "reset should clear uploaded resume metadata");
+  const resetState = await request("/api/state");
+  assert.equal(resetState.data.resumeMeta, null, "state after reset should not retain resume");
+  await assert.rejects(
+    fs.access(path.join(workspaceDir, "uploads/resume-meta.json")),
+    /ENOENT/,
+    "reset should delete uploaded resume files"
   );
+
+  await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
+  await writeText(path.join(workspaceDir, "uploads/resume-extracted.txt"), resumeTextFixture);
 
   await writeJson(path.join(workspaceDir, "llm-results/career_direction.json"), {
     stepId: "career_direction",
@@ -176,7 +228,7 @@ async function main() {
     }
   });
 
-  await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), {
+  const resumeStrategyPayload = {
     stepId: "resume_strategy",
     status: "done",
     createdAt: new Date().toISOString(),
@@ -209,8 +261,55 @@ async function main() {
           text: "某大学 ｜ 本科 ｜ 计算机科学 ｜ 2019 - 2023"
         }
       ],
-      pendingQuestions: ["权限工单下降口径待确认"],
+      publicResume: {
+        header: {
+          name: "匿名候选人",
+          contacts: ["test@example.com", "github.com/example"]
+        },
+        headline: "后端/工具工程师，关注 AI 工具、内部效率与复杂系统稳定性。",
+        summary: ["3 年后端与内部工具经验，能把权限、稳定性和自动化问题沉淀成可复用机制。"],
+        experiences: [
+          {
+            title: "匿名公司 ｜ 后端/工具工程师",
+            period: "2023 - 至今",
+            bullets: ["重构企业权限模型，支持自定义角色与细粒度鉴权，降低权限配置复杂度并提升后续维护效率。"]
+          }
+        ],
+        projects: [
+          {
+            title: "CPU 尖刺治理",
+            bullets: ["通过性能剖析、缓存和异步化处理降低服务峰值压力，补齐监控和排查流程。"]
+          }
+        ],
+        skills: ["复杂系统治理 / 内部工具 / 权限模型 / 稳定性优化"],
+        works: [{ title: "内部工具 Demo", description: "将重复排查流程做成自助工具，减少人工协作成本。" }],
+        education: ["某大学 ｜ 本科 ｜ 计算机科学 ｜ 2019 - 2023"]
+      },
+      pendingQuestions: "权限工单下降口径待确认",
       layoutNotes: ["不要强行压缩到一页"]
+    }
+  };
+  await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), resumeStrategyPayload);
+
+  const blockedJobStart = await request("/api/jobs/resume_render", { method: "POST", body: "{}" });
+  const blockedJob = await pollJobStatus(blockedJobStart.data.job.id);
+  assert.equal(blockedJob.status, "failed");
+  assert.match(blockedJob.error, /第三轮|待确认|简历策略/);
+
+  await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), {
+    ...resumeStrategyPayload,
+    updatedAt: new Date().toISOString(),
+    result: {
+      ...resumeStrategyPayload.result,
+      readiness: {
+        informationSufficient: true,
+        confidence: "medium",
+        shouldAskUser: false,
+        recommendedNextAction: "render_resume",
+        reason: "smoke fixture confirmed"
+      },
+      questions: [],
+      pendingQuestions: []
     }
   });
 
@@ -232,9 +331,10 @@ async function main() {
   assert.match(resumeHtml.text, /class="header-top"/);
   assert.match(resumeHtml.text, /class="headline"/);
   assert.match(resumeHtml.text, /个人简介/);
-  assert.match(resumeHtml.text, /项目经历/);
+  assert.match(resumeHtml.text, /重点项目/);
   assert.match(resumeHtml.text, /个人作品/);
   assert.match(resumeHtml.text, /教育经历/);
+  assert.match(resumeHtml.text, /匿名公司/);
   assertNotIncludes(resumeHtml.text, ["项目排序", "待确认问题", "版式注意", "项目证据补强", "风险：", "layoutNotes", "pendingQuestions"], "resume HTML");
 
   if (!keepSession && sessionId.startsWith("career-smoke-")) {

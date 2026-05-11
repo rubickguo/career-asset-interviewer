@@ -2,6 +2,7 @@ import express from "express";
 import { execFile } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { promisify } from "node:util";
@@ -19,7 +20,11 @@ const execFileAsync = promisify(execFile);
 const sessionStore = new AsyncLocalStorage();
 
 function asArray(value) {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) return value;
+  if (value === undefined || value === null || value === false) return [];
+  if (typeof value === "string") return value.trim() ? [value.trim()] : [];
+  if (typeof value === "object") return Object.values(value).filter((item) => item !== undefined && item !== null && item !== "");
+  return [value];
 }
 
 function buildDirs(workspaceDir) {
@@ -439,6 +444,7 @@ async function emptyDirectory(dir) {
 async function resetFlowState() {
   await ensureWorkspace();
   await Promise.all([
+    emptyDirectory(dirs.uploads),
     emptyDirectory(dirs.llmResults),
     emptyDirectory(dirs.results),
     emptyDirectory(dirs.actionRuns),
@@ -457,7 +463,7 @@ async function resetFlowState() {
   }
 
   return {
-    resumeMeta: await readJsonFile(path.join(dirs.uploads, "resume-meta.json"), null),
+    resumeMeta: null,
     resetAt: new Date().toISOString()
   };
 }
@@ -715,8 +721,27 @@ function countMatches(text, patterns) {
   return patterns.reduce((count, pattern) => count + (String(text || "").match(pattern) || []).length, 0);
 }
 
+function countAnsweredAnswers(raw, round = "") {
+  try {
+    const parsed = JSON.parse(raw || "{}");
+    return asArray(parsed.answers).filter((item) => {
+      const answer = String(item?.answer || "").trim();
+      if (!answer || answer === "未回答") return false;
+      if (!round) return true;
+      return !item?.round || item.round === round;
+    }).length;
+  } catch {
+    return 0;
+  }
+}
+
 function hasUserAnsweredCareerQuestions(context) {
-  return String(context?.careerAnswers || "").trim().length > 20;
+  const answered = countAnsweredAnswers(context?.careerAnswersJson, "direction");
+  if (answered > 0) return true;
+  const markdown = String(context?.careerAnswers || "");
+  return markdown
+    .split("\n")
+    .some((line) => line.trim() && !/^#|Saved at:|未回答$/i.test(line.trim()));
 }
 
 function resumeHasEnoughEvidenceForSkippingInterview(context, resumeMeta) {
@@ -744,6 +769,38 @@ function projectEvidenceLooksSufficient(result) {
   const missingSignals = countMatches(serialized, [/缺失|不足|待确认|missing|unclear|unknown/gi]);
   const metricSignals = countMatches(serialized, [/\d+(\.\d+)?\s*(%|万|千|k|K|w|W|人|次|元|月|天|年|倍|DAU|MAU|GMV|ROI|CTR|CVR)/g]);
   return projects.length >= 1 && metricSignals >= 2 && missingSignals <= 1;
+}
+
+function projectEvidenceNeedsUser(result) {
+  const directQuestions = asArray(result?.questions).length;
+  const priorityGaps = asArray(result?.priorityProjects).some((project) =>
+    asArray(project?.missing).length || asArray(project?.questions).length
+  );
+  const skillGaps = asArray(result?.skillEvidence).some((item) =>
+    /weak|missing/i.test(String(item?.evidenceStrength || "")) || String(item?.missing || "").trim()
+  );
+  const lifeQuestions = asArray(result?.lifeExperienceQuestions).length;
+  const reason = String(result?.readiness?.reason || result?.nextStep || "");
+  const textualGaps = /需要确认|待确认|缺失|不足|边界|口径|missing|unclear|unknown/i.test(reason);
+  return Boolean(directQuestions || priorityGaps || skillGaps || lifeQuestions || textualGaps);
+}
+
+function stepNeedsUser(results, stepId) {
+  const result = results?.[stepId]?.result;
+  return Boolean(result?.readiness?.shouldAskUser);
+}
+
+function resultRecommended(results, stepId, actions) {
+  return actions.includes(recommendedNextAction(results, stepId));
+}
+
+function resumeStrategyHasBlockingGaps(result) {
+  return Boolean(
+    result?.readiness?.shouldAskUser ||
+      asArray(result?.questions).length ||
+      asArray(result?.pendingQuestions).length ||
+      !hasPublicResumeSource(result)
+  );
 }
 
 function fallbackDirectionQuestions() {
@@ -786,6 +843,86 @@ function fallbackProjectQuestions() {
   ];
 }
 
+const questionDefaultsByStep = {
+  career_direction: {
+    prefix: "direction_question",
+    relatedAssetField: "directions",
+    blocksWhichDecision: "是否继续当前职业轨道，还是验证转向",
+    expectedAnswerType: "preference"
+  },
+  project_mining: {
+    prefix: "project_question",
+    relatedAssetField: "projects",
+    blocksWhichDecision: "项目是否可以写成可信简历证据",
+    expectedAnswerType: "fact"
+  },
+  resume_strategy: {
+    prefix: "resume_gap_question",
+    relatedAssetField: "resumeStories",
+    blocksWhichDecision: "是否允许生成正式简历预览",
+    expectedAnswerType: "boundary"
+  }
+};
+
+const allowedQuestionAssetFields = new Set(["profile", "directions", "keywords", "projects", "skillsEvidence", "resumeStories", "publicBoundary"]);
+const allowedAnswerTypes = new Set(["fact", "metric", "preference", "constraint", "boundary", "correction"]);
+
+function normalizeQuestionForStep(stepId, item, index) {
+  const defaults = questionDefaultsByStep[stepId] || questionDefaultsByStep.career_direction;
+  const source = typeof item === "string" ? { question: item } : { ...(item || {}) };
+  const question = String(source.question || source.text || "").trim();
+  if (!question) return null;
+  const relatedAssetField = allowedQuestionAssetFields.has(source.relatedAssetField) ? source.relatedAssetField : defaults.relatedAssetField;
+  const expectedAnswerType = allowedAnswerTypes.has(source.expectedAnswerType) ? source.expectedAnswerType : defaults.expectedAnswerType;
+  return {
+    id: String(source.id || `${defaults.prefix}_${index + 1}`)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "") || `${defaults.prefix}_${index + 1}`,
+    question,
+    why: String(source.why || source.whyNeeded || "这个问题会影响下一步判断。").trim(),
+    whyNeeded: String(source.whyNeeded || source.why || "这个问题会影响下一步判断。").trim(),
+    relatedAssetField,
+    blocksWhichDecision: String(source.blocksWhichDecision || defaults.blocksWhichDecision).trim(),
+    expectedAnswerType,
+    evidenceAnchor: String(source.evidenceAnchor || "暂无明确锚点").trim(),
+    isRequired: source.isRequired === false ? false : true,
+    placeholder: String(source.placeholder || "写事实、边界或真实判断即可，不需要自己包装。").trim()
+  };
+}
+
+function normalizeQuestionsForStep(stepId, questions) {
+  return asArray(questions)
+    .map((item, index) => normalizeQuestionForStep(stepId, item, index))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function applyDeterministicReadiness(result, { action, shouldAskUser, reason }) {
+  const next = { ...(result || {}) };
+  next.readiness = {
+    ...(next.readiness || {}),
+    informationSufficient: !shouldAskUser,
+    shouldAskUser,
+    recommendedNextAction: action,
+    reason: reason || next.readiness?.reason || "由产品编排器基于当前资产完整度确认。"
+  };
+  if (!shouldAskUser) next.questions = [];
+  return next;
+}
+
+function hasPublicResumeSource(result) {
+  const publicResume = result?.publicResume || {};
+  return Boolean(
+    publicResume?.headline ||
+    asArray(publicResume?.summary).length ||
+    asArray(publicResume?.experiences).length ||
+    asArray(publicResume?.projects).length ||
+    asArray(result?.bullets).length
+  );
+}
+
 function forceAsk(result, { action, reason, questions }) {
   const next = { ...(result || {}) };
   next.readiness = {
@@ -801,31 +938,120 @@ function forceAsk(result, { action, reason, questions }) {
   return next;
 }
 
+function sanitizeUnconfirmedRoleClaims(value, sourceText) {
+  const hasLeadEvidence = /主导|负责人|owner|owned|led/i.test(String(sourceText || ""));
+  const sanitizeText = (text) => {
+    let next = String(text || "");
+    if (!hasLeadEvidence) {
+      next = next
+        .replace(/近期主导了/g, "近期参与/推动了")
+        .replace(/主导过/g, "参与/推动过")
+        .replace(/主导了/g, "参与/推动了");
+    }
+    return next
+      .replace(/资深/g, "")
+      .replace(/专家/g, "方向")
+      .replace(/领军/g, "")
+      .replace(/顶尖/g, "");
+  };
+  if (typeof value === "string") return sanitizeText(value);
+  if (Array.isArray(value)) return value.map((item) => sanitizeUnconfirmedRoleClaims(item, sourceText));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, sanitizeUnconfirmedRoleClaims(item, sourceText)]));
+  }
+  return value;
+}
+
+function fallbackMirrorCard(result) {
+  const headline = String(result?.headline || result?.judgment || "这一轮已经补充了重要信息。");
+  const advice = result?.adviceCard || {};
+  const confirm = asArray(advice.whatToConfirm)[0] || asArray(result?.questions)[0]?.question || "下一步需要继续确认项目证据和角色边界。";
+  return {
+    hit: headline,
+    tension: advice.why || "现在能看到一些方向信号，但还需要分清哪些是已经发生过的事实，哪些只是待验证的方向假设。",
+    workPattern: "你更适合用具体项目、角色边界和指标口径来说明自己，而不是先给自己贴一个岗位标签。",
+    evidenceBoundary: "我先不急着把它写成简历优势，因为还需要确认项目中的真实角色、关键动作和可公开结果。",
+    nextValidation: confirm,
+    feedbackOptions: [
+      "这里把我的方向判断说得太窄了",
+      "这里低估了我已有的项目证据",
+      "这里把兴趣和能力混在一起了"
+    ]
+  };
+}
+
 function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
+  let next = { ...(result || {}) };
+  next.questions = normalizeQuestionsForStep(stepId, next.questions);
+
   if (
     stepId === "career_direction" &&
     !hasUserAnsweredCareerQuestions(context) &&
     !resumeHasEnoughEvidenceForSkippingInterview(context, resumeMeta) &&
-    result?.readiness?.shouldAskUser === false
+    next?.readiness?.shouldAskUser === false
   ) {
-    return forceAsk(result, {
+    next = forceAsk(next, {
       action: "ask_direction_questions",
       reason: `模型判断可跳过问答，但当前简历文本里的经历、项目动作和指标证据过少。为避免误判，需要先完成第一轮访谈。模型原判断：${result?.readiness?.reason || "未说明"}`,
       questions: fallbackDirectionQuestions()
     });
   }
-  if (
-    stepId === "project_mining" &&
-    !projectEvidenceLooksSufficient(result) &&
-    ["run_resume_strategy", "render_resume"].includes(String(result?.readiness?.recommendedNextAction || ""))
-  ) {
-    return forceAsk(result, {
-      action: "ask_project_questions",
-      reason: `模型判断可直接生成简历策略，但项目证据中缺少足够的项目卡、指标或角色边界。为避免把职责写成成果，需要先补项目事实。模型原判断：${result?.readiness?.reason || "未说明"}`,
-      questions: fallbackProjectQuestions()
+
+  if (stepId === "career_direction") {
+    const hasAnsweredCareerQuestions = hasUserAnsweredCareerQuestions(context);
+    if (!hasAnsweredCareerQuestions) {
+      next = sanitizeUnconfirmedRoleClaims(next, context.resumeText);
+      next.questions = normalizeQuestionsForStep(stepId, next.questions);
+    } else if (!next.mirrorCard) {
+      next.mirrorCard = fallbackMirrorCard(next);
+    }
+    next.questions = normalizeQuestionsForStep(stepId, next.questions);
+    if (next.questions.length && !hasUserAnsweredCareerQuestions(context)) {
+      return applyDeterministicReadiness(next, {
+        action: "ask_direction_questions",
+        shouldAskUser: true,
+        reason: next.readiness?.reason || "职业方向仍有关键判断需要用户确认。"
+      });
+    }
+    return applyDeterministicReadiness(next, {
+      action: "run_project_mining",
+      shouldAskUser: false,
+      reason: hasUserAnsweredCareerQuestions(context)
+        ? "第一轮方向访谈已经完成。仍未确认的方向假设会带到项目证据轮继续验证。"
+        : next.readiness?.reason || "职业方向信息已足够进入项目证据提炼。"
     });
   }
-  return result;
+
+  if (stepId === "project_mining" && (!projectEvidenceLooksSufficient(next) || projectEvidenceNeedsUser(next))) {
+    next = forceAsk(next, {
+      action: "ask_project_questions",
+      reason: `项目证据里仍有角色边界、指标口径或非正式经历需要确认。为避免把参与写成主导，需要先补项目事实。模型原判断：${result?.readiness?.reason || "未说明"}`,
+      questions: fallbackProjectQuestions()
+    });
+    next.questions = normalizeQuestionsForStep(stepId, next.questions);
+    return next;
+  }
+
+  if (stepId === "project_mining") {
+    return applyDeterministicReadiness(next, {
+      action: "run_resume_strategy",
+      shouldAskUser: false,
+      reason: next.readiness?.reason || "项目证据已达到生成简历策略的最低要求。"
+    });
+  }
+
+  if (stepId === "resume_strategy") {
+    const hasBlockingGaps = resumeStrategyHasBlockingGaps(next);
+    return applyDeterministicReadiness(next, {
+      action: hasBlockingGaps ? "ask_resume_gap_questions" : "render_resume",
+      shouldAskUser: hasBlockingGaps,
+      reason: hasBlockingGaps
+        ? next.readiness?.reason || "简历策略还有模糊点、公开边界或可渲染简历内容需要确认。"
+        : next.readiness?.reason || "简历策略和可展示内容已足够进入预览。"
+    });
+  }
+
+  return next;
 }
 
 function recommendedNextAction(results, stepId) {
@@ -833,23 +1059,24 @@ function recommendedNextAction(results, stepId) {
 }
 
 function allowsResumeStrategy(results) {
-  if (done(results, "project_mining")) return true;
-  const careerNext = recommendedNextAction(results, "career_direction");
-  const projectNext = recommendedNextAction(results, "project_mining");
-  return ["run_resume_strategy", "render_resume"].includes(careerNext) || ["run_resume_strategy", "render_resume"].includes(projectNext);
+  if (done(results, "project_mining")) return !stepNeedsUser(results, "project_mining");
+  return resultRecommended(results, "career_direction", ["run_resume_strategy", "render_resume"]);
 }
 
 function actionGate(stepId, context) {
   const results = context.llmResults || {};
   const hasResume = context.resumeMeta?.parseStatus === "parsed";
   const hasJd = Boolean(String(context.jdText || "").replace(/^# JD\s*/i, "").trim());
+  const careerReadyForProjects = done(results, "career_direction") && !stepNeedsUser(results, "career_direction");
+  const projectReadyForStrategy = allowsResumeStrategy(results);
+  const strategyReadyForRender = done(results, "resume_strategy") && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result);
   const gates = {
     career_direction: [hasResume, "需要先上传并解析简历。"],
-    project_mining: [done(results, "career_direction"), "需要先完成职业方向诊断。"],
-    resume_strategy: [allowsResumeStrategy(results), "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
-    resume_render: [done(results, "resume_strategy"), "需要先生成简历策略。"],
+    project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction") ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
+    resume_strategy: [projectReadyForStrategy, stepNeedsUser(results, "project_mining") ? "需要先完成第二轮项目证据确认。" : "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
+    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy") ? "需要先完成第三轮简历缺口确认，才能生成正式预览。" : "需要先生成简历策略。"],
     jd_fit: [done(results, "career_direction") && hasJd, hasJd ? "需要先完成职业方向诊断。" : "需要先粘贴 JD。"],
-    personal_site: [done(results, "project_mining") && done(results, "resume_strategy"), "需要先完成项目证据和简历策略。"]
+    personal_site: [done(results, "project_mining") && !stepNeedsUser(results, "project_mining") && strategyReadyForRender, "需要先完成项目证据和简历策略。"]
   };
   const [allowed, reason] = gates[stepId] || [false, "未知 action。"];
   return {
@@ -942,6 +1169,7 @@ async function buildWorkflowContext() {
     skillsEvidence: await readText(path.join(dirs.assets, "skills-evidence.md")),
     resumeStories: await readText(path.join(dirs.assets, "resume-stories.md")),
     careerAnswers: await readText(path.join(dirs.intake, "career-direction-answers.md")),
+    careerAnswersJson: await readText(path.join(dirs.intake, "career-direction-answers.json")),
     mirrorFeedback: await readText(path.join(dirs.intake, "mirror-feedback.md")),
     jdText: await readText(path.join(dirs.intake, "jd.md")),
     websiteBrief: await readText(path.join(dirs.assets, "website-brief.md"))
@@ -989,6 +1217,9 @@ async function applyStepToAssets(stepId, result) {
 async function runResumeRender() {
   const resumeStrategy = (await getStepResult("resume_strategy"))?.result;
   if (!resumeStrategy) throw new Error("Run resume strategy before rendering resume HTML.");
+  if (resumeStrategyHasBlockingGaps(resumeStrategy)) {
+    throw new Error("简历策略仍有待确认问题。请先完成第三轮简历缺口确认，再生成正式 HTML/PDF 预览。");
+  }
   const careerDirection = (await getStepResult("career_direction"))?.result || {};
   const projectMining = (await getStepResult("project_mining"))?.result || {};
   const resumeMeta = (await readJsonFile(path.join(dirs.uploads, "resume-meta.json"), {})) || {};
@@ -997,6 +1228,14 @@ async function runResumeRender() {
   const findings = inspectResumeHtml(html);
   const resumeHtmlPath = path.join(dirs.exports, "resume.html");
   const resumePdfPath = path.join(dirs.exports, "resume.pdf");
+  const blockingFindings = findings.filter((item) => /^Blocking /i.test(item));
+  if (blockingFindings.length) {
+    await Promise.all([
+      fs.rm(resumeHtmlPath, { force: true }),
+      fs.rm(resumePdfPath, { force: true })
+    ]);
+    throw new Error(`简历预览包含内部字段，已阻止导出：${blockingFindings.join("；")}`);
+  }
   await fs.writeFile(resumeHtmlPath, html, "utf8");
   const pdfResult = await renderPdfWithChrome(resumeHtmlPath, resumePdfPath);
   const allFindings = [...findings, ...pdfResult.findings];
@@ -1281,6 +1520,7 @@ app.post("/api/assets/:file", async (req, res, next) => {
 });
 
 app.post("/api/intake/resume", async (req, res, next) => {
+  let tempDir = "";
   try {
     await ensureWorkspace();
     const fileName = path.basename(String(req.body.fileName || ""));
@@ -1293,11 +1533,19 @@ app.post("/api/intake/resume", async (req, res, next) => {
 
     const ext = path.extname(fileName).toLowerCase();
     const storedName = `resume-original${ext}`;
-    const storedPath = path.join(dirs.uploads, storedName);
     const buffer = Buffer.from(base64, "base64");
-    await fs.writeFile(storedPath, buffer);
+    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "career-web-upload-"));
+    const tempPath = path.join(tempDir, storedName);
+    await fs.writeFile(tempPath, buffer);
 
-    const parsed = await parseResumeFile(storedPath, ext);
+    const parsed = await parseResumeFile(tempPath, ext);
+    if (parsed.text.length < 80) {
+      throw new Error("简历解析出的文字太少，可能是扫描件或图片型 PDF。请上传可复制文字的 PDF/DOCX，或先转成文本版简历。");
+    }
+
+    await resetFlowState();
+    const storedPath = path.join(dirs.uploads, storedName);
+    await fs.writeFile(storedPath, buffer);
     await fs.writeFile(path.join(dirs.uploads, "resume-extracted.txt"), parsed.text, "utf8");
 
     const meta = {
@@ -1345,6 +1593,8 @@ ${parsed.text}
     res.json({ ok: true, file: `uploads/${storedName}`, meta });
   } catch (error) {
     next(error);
+  } finally {
+    if (tempDir) await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 });
 
@@ -1355,16 +1605,22 @@ app.post("/api/intake/career-direction-answers", async (req, res, next) => {
     const savedAt = new Date().toISOString();
     const safeAnswers = answers.map((item, index) => ({
       id: String(item.id || `q${index + 1}`),
+      round: String(item.round || ""),
       question: String(item.question || ""),
       answer: String(item.answer || "").trim()
     }));
     const answeredCount = safeAnswers.filter((item) => item.answer).length;
+    if (answeredCount === 0) {
+      throw new Error("请至少回答一个问题，再继续生成判断。");
+    }
     const markdown = `# Career Direction Answers
 
 Saved at: ${savedAt}
 
 ${safeAnswers
   .map((item, index) => `## ${index + 1}. ${item.question || item.id}
+
+- Round: ${item.round || "unknown"}
 
 ${item.answer || "未回答"}
 `)

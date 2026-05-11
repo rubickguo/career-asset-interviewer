@@ -245,6 +245,14 @@ a {
   min-width: 0;
 }
 
+.mobile-step-indicator {
+  display: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .route-dots button {
   min-height: 36px;
   padding: 0 10px;
@@ -352,6 +360,17 @@ textarea[readonly] {
     radial-gradient(circle at 50% 25%, rgba(35, 191, 174, 0.16), transparent 38%),
     rgba(255, 255, 255, 0.74);
   text-align: center;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  cursor: pointer;
+}
+
+.upload-zone.is-dragging {
+  border-color: rgba(11, 141, 130, 0.82);
+  background:
+    radial-gradient(circle at 50% 25%, rgba(35, 191, 174, 0.24), transparent 42%),
+    rgba(243, 255, 252, 0.92);
+  box-shadow: 0 22px 60px rgba(11, 141, 130, 0.18);
+  transform: translateY(-1px);
 }
 
 .upload-zone input {
@@ -469,6 +488,25 @@ textarea[readonly] {
   font-weight: 800;
 }
 
+.waiting-error-panel {
+  display: grid;
+  gap: 12px;
+  max-width: 620px;
+  padding: 16px;
+  border: 1px solid rgba(214, 93, 78, 0.22);
+  border-radius: 10px;
+  background: rgba(214, 93, 78, 0.08);
+  text-align: left;
+}
+
+.waiting-error-panel strong {
+  color: var(--ink-strong);
+}
+
+.waiting-error-panel p {
+  color: var(--muted);
+}
+
 .waiting-tip {
   max-width: 540px;
   margin-top: 8px;
@@ -537,7 +575,8 @@ textarea[readonly] {
   font-weight: 900;
 }
 
-.mirror-card {
+.mirror-card,
+.resume-diagnosis-card {
   display: grid;
   gap: 18px;
   margin-bottom: 18px;
@@ -556,6 +595,44 @@ textarea[readonly] {
   color: var(--ink-strong);
   font-size: 28px;
   line-height: 1.25;
+}
+
+.resume-diagnosis-card h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 30px;
+  line-height: 1.28;
+  overflow-wrap: anywhere;
+}
+
+.resume-diagnosis-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.resume-diagnosis-grid section {
+  padding: 16px;
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.resume-diagnosis-grid span {
+  color: var(--coral);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.resume-diagnosis-grid p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.resume-diagnosis-grid p strong {
+  color: var(--ink);
 }
 
 .mirror-hit {
@@ -1095,10 +1172,21 @@ select:focus {
     display: none;
   }
 
+  .mobile-step-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 34px;
+    padding: 0 10px;
+    border-radius: 999px;
+    background: rgba(23, 32, 51, 0.06);
+  }
+
   .step-page,
   .diagnosis-layout,
   .insight-grid,
   .mirror-sections,
+  .resume-diagnosis-grid,
   .advice-card,
   .advice-columns,
   .deliverable-grid,
@@ -1199,6 +1287,7 @@ select:focus {
   .step-card,
   .hero-card,
   .mirror-card,
+  .resume-diagnosis-card,
   .advice-card,
   .waiting-card,
   .question-panel,
@@ -1218,10 +1307,12 @@ select:focus {
   .page-head h1,
   .mirror-hit,
   .mirror-card h2,
+  .resume-diagnosis-card h2,
   .advice-card h2,
   .advice-reason,
   .advice-columns p,
   .mirror-sections p,
+  .resume-diagnosis-grid p,
   .next-signal strong,
   .question-panel strong,
   .question-panel textarea,
