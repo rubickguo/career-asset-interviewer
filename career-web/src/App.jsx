@@ -348,6 +348,54 @@ function routeForNav(key, state) {
   return key;
 }
 
+const interviewRoundOrder = ["direction", "projects", "gaps"];
+
+function resultForInterviewRound(state, roundKey) {
+  const stepByRound = {
+    direction: "career_direction",
+    projects: "project_mining",
+    gaps: "resume_strategy"
+  };
+  return state?.llmResults?.[stepByRound[roundKey]]?.result || null;
+}
+
+function roundHasVisibleQuestions(state, roundKey) {
+  const roundState = state?.interview?.rounds?.[roundKey];
+  return Boolean(roundState && (Number(roundState.askedCount || 0) > 0 || Number(roundState.answeredCount || 0) > 0 || Number(roundState.openCount || 0) > 0));
+}
+
+function interviewNavigationActions(roundKey, state, readOnly) {
+  const index = interviewRoundOrder.indexOf(roundKey);
+  const roundState = state?.interview?.rounds?.[roundKey];
+  const hasOpenQuestions = Number(roundState?.openCount || 0) > 0;
+  const actions = [];
+  const previousRound = interviewRoundOrder[index - 1];
+  const nextRound = interviewRoundOrder[index + 1];
+  const canEnterNextRound = (readOnly || !hasOpenQuestions) && nextRound && roundHasVisibleQuestions(state, nextRound);
+
+  if (previousRound && roundHasVisibleQuestions(state, previousRound)) {
+    actions.push({ label: "查看上一轮", path: `interview/${previousRound}`, variant: "ghost" });
+  }
+
+  if (resultForInterviewRound(state, roundKey)) {
+    actions.push({
+      label: canEnterNextRound || hasOpenQuestions ? "查看本轮判断" : "确定并查看本轮判断",
+      path: `insight/${roundKey}`,
+      variant: canEnterNextRound || hasOpenQuestions ? "ghost" : "primary"
+    });
+  }
+
+  if (canEnterNextRound) {
+    actions.push({ label: "进入下一轮", path: `interview/${nextRound}`, variant: "primary" });
+  }
+
+  if ((readOnly || !hasOpenQuestions) && roundKey === "gaps" && state?.llmResults?.resume_strategy?.result) {
+    actions.push({ label: "进入简历预览", path: "resume", variant: "primary" });
+  }
+
+  return actions;
+}
+
 function currentStepMeta(view, id = "") {
   if (view === "upload") return { index: 1, total: 5, label: "上传简历" };
   if (view === "diagnosis") return { index: 2, total: 5, label: "初步诊断" };
@@ -1015,8 +1063,10 @@ function DiagnosisPage({ result, resumeMeta, busy, onRun, onAskDirection, onRunP
   );
 }
 
-function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, readOnly }) {
+function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, readOnly, navigationActions = [] }) {
   const openQuestions = questions.filter((item) => !item.locked);
+  const canSave = !readOnly && openQuestions.length > 0;
+  const hasActions = canSave || navigationActions.length > 0;
   return (
     <section className="solo-page compact">
       <div className="page-head">
@@ -1046,11 +1096,22 @@ function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, re
           </label>
         ))}
       </div>
-      {!readOnly && openQuestions.length > 0 && (
-        <div className="step-actions end">
-          <PrimaryButton icon={busy ? Loader2 : BadgeCheck} onClick={onSave} disabled={busy}>
-            {round.cta}
-          </PrimaryButton>
+      {hasActions && (
+        <div className="step-actions end interview-actions">
+          {navigationActions.map((action) => action.variant === "primary" ? (
+            <PrimaryButton key={`${action.label}-${action.path}`} onClick={() => goPath(action.path)} disabled={busy}>
+              {action.label}
+            </PrimaryButton>
+          ) : (
+            <GhostButton key={`${action.label}-${action.path}`} onClick={() => goPath(action.path)} disabled={busy}>
+              {action.label}
+            </GhostButton>
+          ))}
+          {canSave && (
+            <PrimaryButton icon={busy ? Loader2 : BadgeCheck} onClick={onSave} disabled={busy}>
+              {round.cta}
+            </PrimaryButton>
+          )}
         </div>
       )}
     </section>
@@ -1893,6 +1954,7 @@ function App() {
   const directionInterviewStarted = isDirectionInterviewStarted(state);
   const projectInterviewStarted = isProjectInterviewStarted(state);
   const activeRoundKey = route.view === "interview" ? route.id || "direction" : "direction";
+  const activeRoundReadOnly = isRouteReadOnly(route, state);
   const activeRoundState = state?.interview?.rounds?.[activeRoundKey] || null;
   const activeRoundBase = interviewRounds[activeRoundKey] || interviewRounds.direction;
   const activeRound = {
@@ -2170,7 +2232,8 @@ function App() {
           setAnswers={setAnswers}
           busy={busy}
           onSave={saveInterviewRound}
-          readOnly={isRouteReadOnly(route, state)}
+          readOnly={activeRoundReadOnly}
+          navigationActions={interviewNavigationActions(activeRoundKey, state, activeRoundReadOnly)}
         />
       )}
       {route.view === "projects" && (

@@ -113,6 +113,11 @@ async function main() {
   assert.match(appSource, /判断项目证据/);
   assert.match(appSource, /判断简历缺口/);
   assert.match(appSource, /保存并查看判断/);
+  assert.match(appSource, /查看上一轮/);
+  assert.match(appSource, /查看本轮判断/);
+  assert.match(appSource, /确定并查看本轮判断/);
+  assert.match(appSource, /进入下一轮/);
+  assert.match(appSource, /interviewNavigationActions/);
   assert.match(appSource, /routeForNav/);
   assert.match(appSource, /readOnly=\{readOnly \|\| item\.locked\}/);
   assert.match(appSource, /projectItemsFromResult/);
