@@ -83,12 +83,33 @@ location /test/ {
 }
 ```
 
+## 登录和隔离配置
+
+当前后端已经支持 cookie session、手机号验证码登录和按用户隔离的 workspace。临时内测可以先用本地测试验证码；外放时建议启用强制登录，并关闭本地测试验证码。
+
+```bash
+APP_ORIGIN=https://你的域名
+AUTH_REQUIRE_LOGIN=true
+AUTH_SESSION_SECRET=一段足够长的随机字符串
+AUTH_COOKIE_SECURE=true
+PHONE_LOGIN_ENABLED=true
+SMS_DEV_LOGIN_ENABLED=false
+ALIYUN_SMS_PROVIDER=aliyun_verify
+ALIYUN_ACCESS_KEY_ID=你的阿里云 AccessKey
+ALIYUN_ACCESS_KEY_SECRET=你的阿里云 AccessKey Secret
+ALIYUN_SMS_SIGN_NAME=速通互联验证码
+ALIYUN_SMS_TEMPLATE_CODE=100001
+ALIYUN_SMS_TEMPLATE_PARAM={"code":"##code##","min":"10"}
+ALIYUN_SMS_REGION_ID=cn-hangzhou
+ALIYUN_SMS_ENDPOINT=https://dypnsapi.aliyuncs.com
+```
+
+如果部署在子路径，例如 `/test/`，仍建议让 API 由同一个域名反代到后端。短信认证会让阿里云动态生成并核验验证码；不要把验证码改成本地生成，否则后端无法通过 `CheckSmsVerifyCode` 完成云端校验。
+
 ## 重要隐私提醒
 
 `workspace/` 会保存用户上传的简历、解析文本、职业画像、LLM 结果、导出的简历和个人网站。正式外放前需要补：
 
-- 用户隔离
-- 登录鉴权
 - 数据删除能力
 - 上传文件大小和类型限制
 - 服务器备份/清理策略

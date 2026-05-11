@@ -37,6 +37,31 @@ async function request(pathname, options = {}) {
   return { response, data, text };
 }
 
+async function requestWithCookie(pathname, jar, options = {}) {
+  const response = await fetch(`${baseUrl}${pathname}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Career-Session-Id": sessionId,
+      Cookie: jar.cookie || "",
+      ...(options.headers || {})
+    }
+  });
+  const setCookie = response.headers.get("set-cookie");
+  if (setCookie) jar.cookie = setCookie.split(";")[0];
+  const text = await response.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  if (!response.ok || data?.ok === false) {
+    throw new Error(`Request failed ${response.status} ${pathname}: ${typeof data === "string" ? data : data?.error}`);
+  }
+  return { response, data, text };
+}
+
 async function writeJson(filePath, data) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, JSON.stringify(data, null, 2), "utf8");
@@ -92,6 +117,11 @@ async function main() {
   assert.match(appSource, /savedQuestionsForRound/);
   assert.match(appSource, /上传简历后分析 JD/);
   assert.match(appSource, /waiting-error-panel/);
+  assert.match(appSource, /LoginPage/);
+  assert.match(appSource, /authApi/);
+  assert.match(appSource, /手机号登录/);
+  assert.match(appSource, /获取验证码/);
+  assert.match(appSource, /auth\/phone\/send-code/);
   assertNotIncludes(appSource, ["先看初步判断", "继续深访", "整理项目线索", "回去调整", "每个重点项目，最后有哪些可以被别人相信的变化", "progressWidth"], "App source");
 
   const rendererSource = await fs.readFile(path.join(rootDir, "server/renderers.js"), "utf8");
@@ -127,6 +157,15 @@ async function main() {
   assert.match(serverSource, /fallbackMirrorCard/);
   assert.match(serverSource, /sanitizeUnconfirmedRoleClaims/);
   assert.match(serverSource, /简历解析出的文字太少/);
+  assert.match(serverSource, /api\/auth\/phone\/send-code/);
+  assert.match(serverSource, /SendSmsVerifyCode/);
+  assert.match(serverSource, /CheckSmsVerifyCode/);
+  assert.match(serverSource, /ALIYUN_SMS_PROVIDER/);
+  assert.match(serverSource, /import "\.\/localEnv\.js"/);
+  assert.match(serverSource, /sendAliyunSmsCode/);
+  assert.match(serverSource, /PHONE_LOGIN_ENABLED/);
+  assert.match(serverSource, /buildSessionContext\(sessionId, authSession\)/);
+  assert.match(serverSource, /AUTH_REQUIRE_LOGIN/);
 
   const landing = await request("/");
   assert.match(landing.text, /<div id="root"><\/div>/);
@@ -135,6 +174,25 @@ async function main() {
   const initialState = await request("/api/state");
   const workspaceDir = initialState.data.workspaceDir;
   assert.ok(workspaceDir.includes(path.join("workspace", "sessions", sessionId)), "test must use an isolated session workspace");
+
+  const auth = await request("/api/auth/me");
+  assert.equal(typeof auth.data.auth.enabled, "boolean");
+  if (auth.data.auth.phoneLoginEnabled && auth.data.auth.smsDevLoginEnabled) {
+    const jar = {};
+    const codeResponse = await requestWithCookie("/api/auth/phone/send-code", jar, {
+      method: "POST",
+      body: JSON.stringify({ phone: "13800000000" })
+    });
+    await requestWithCookie("/api/auth/phone/login", jar, {
+      method: "POST",
+      body: JSON.stringify({ phone: "13800000000", code: codeResponse.data.devCode || process.env.SMS_DEV_CODE || "123456" })
+    });
+    const authedState = await requestWithCookie("/api/state", jar);
+    assert.equal(authedState.data.user.mode, "authenticated");
+    assert.equal(authedState.data.user.auth.provider, "phone");
+    assert.notEqual(authedState.data.workspaceDir, workspaceDir);
+    assert.ok(!authedState.data.workspaceDir.endsWith(sessionId), "authenticated workspace should not use browser-local session id");
+  }
 
   await request("/api/intake/mirror-feedback", {
     method: "POST",

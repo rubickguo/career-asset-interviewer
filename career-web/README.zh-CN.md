@@ -33,6 +33,8 @@ career-web/
 │   ├── career-assets/    # 用户画像、方向、关键词、项目卡等长期资产
 │   ├── agent-tasks/      # 网页生成、等待 Codex 处理的任务
 │   ├── agent-results/    # Codex 写回的结果
+│   ├── auth/             # 登录 session、短信验证码记录，本地保存，不提交 Git
+│   ├── sessions/         # 按匿名 session 或登录用户隔离的工作区
 │   ├── uploads/          # 简历输入等原始资料
 │   └── exports/          # 后续简历 HTML/PDF、个人网站预览等导出物
 └── package.json
@@ -69,4 +71,31 @@ node scripts/parse-resume.mjs workspace/uploads/resume-original.pdf workspace/up
 - JD 匹配和个人网站是可选附加流程。
 - 当前版本已支持本地后端调用 DeepSeek，不需要每一步再让用户手动找 Codex 处理。
 - 用户隐私数据都在 `workspace/`，默认不提交到 Git。
-- 外放前必须补登录鉴权、用户隔离、额度、缓存、限流、数据删除能力。
+- 已有轻量 session 隔离：匿名用户按浏览器 session id 隔离；登录后按手机号 hash 派生的稳定用户目录隔离。
+- 外放前仍需要补额度、缓存、限流、数据删除能力和正式安全审计。
+
+## 登录与用户隔离
+
+当前主路径是手机号验证码登录：
+
+- 本地测试：没有配置阿里云短信时，`SMS_DEV_LOGIN_ENABLED=true` 会返回本地测试验证码，便于验证 cookie session 和用户隔离。
+- 线上短信：推荐使用阿里云「短信认证服务」而不是普通短信服务。当前账号已开通的赠送签名为 `速通互联验证码`，模板 Code 为 `100001`，无需企业短信签名资质。
+- 登录后：后端只用手机号 hash 建立用户工作区，不把明文手机号写进用户 workspace。
+
+关键环境变量见 `.env.example`。正式外放建议：
+
+```bash
+AUTH_REQUIRE_LOGIN=true
+AUTH_SESSION_SECRET=一段足够长的随机字符串
+AUTH_COOKIE_SECURE=true
+APP_ORIGIN=https://你的域名
+PHONE_LOGIN_ENABLED=true
+SMS_DEV_LOGIN_ENABLED=false
+ALIYUN_SMS_PROVIDER=aliyun_verify
+ALIYUN_ACCESS_KEY_ID=你的阿里云 AccessKey
+ALIYUN_ACCESS_KEY_SECRET=你的阿里云 AccessKey Secret
+ALIYUN_SMS_SIGN_NAME=速通互联验证码
+ALIYUN_SMS_TEMPLATE_CODE=100001
+ALIYUN_SMS_TEMPLATE_PARAM={"code":"##code##","min":"10"}
+ALIYUN_SMS_ENDPOINT=https://dypnsapi.aliyuncs.com
+```

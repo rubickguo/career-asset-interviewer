@@ -118,6 +118,14 @@ a {
   padding: 0 18px;
 }
 
+.landing-nav-actions,
+.nav-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -293,6 +301,28 @@ textarea[readonly] {
   font-weight: 900;
 }
 
+.auth-chip {
+  min-height: 42px;
+  max-width: 190px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(23, 32, 51, 0.08);
+  font-weight: 900;
+}
+
+.auth-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .step-page {
   width: min(1120px, calc(100% - 40px));
   min-height: calc(100vh - 116px);
@@ -302,6 +332,99 @@ textarea[readonly] {
   gap: 54px;
   align-items: center;
   padding: 34px 0 52px;
+}
+
+.login-page {
+  grid-template-columns: minmax(0, 720px);
+  justify-content: center;
+}
+
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.login-form {
+  display: grid;
+  gap: 16px;
+  width: min(520px, 100%);
+  margin-top: 28px;
+}
+
+.login-field {
+  display: grid;
+  gap: 8px;
+}
+
+.login-field span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.login-field input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid rgba(23, 32, 51, 0.12);
+  border-radius: 10px;
+  padding: 0 15px;
+  color: var(--ink-strong);
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 16px;
+  outline: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.login-field input:focus {
+  border-color: rgba(29, 142, 138, 0.42);
+  box-shadow: 0 0 0 4px rgba(29, 142, 138, 0.1);
+}
+
+.code-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.code-button {
+  min-height: 52px;
+  padding: 0 16px;
+  border-radius: 10px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.code-button:disabled {
+  opacity: 0.62;
+  cursor: default;
+}
+
+.primary-button.as-link {
+  text-decoration: none;
+}
+
+.login-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 520px;
+  padding: 16px 18px;
+  border-radius: 8px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.76);
+  border: 1px solid rgba(23, 32, 51, 0.08);
+}
+
+.login-note span {
+  color: var(--muted);
+  line-height: 1.65;
 }
 
 .step-copy {
@@ -1262,6 +1385,27 @@ select:focus {
 
   .top-nav {
     padding-left: 12px;
+  }
+
+  .nav-actions {
+    gap: 6px;
+  }
+
+  .auth-chip {
+    max-width: 112px;
+    padding: 0 9px;
+  }
+
+  .auth-chip svg:last-child {
+    display: none;
+  }
+
+  .code-row {
+    grid-template-columns: 1fr;
+  }
+
+  .code-button {
+    width: 100%;
   }
 
   .nav-link {

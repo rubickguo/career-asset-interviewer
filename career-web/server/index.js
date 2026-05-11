@@ -1,3 +1,4 @@
+import "./localEnv.js";
 import express from "express";
 import { execFile } from "node:child_process";
 import crypto from "node:crypto";
@@ -18,6 +19,33 @@ const rootDir = path.resolve(__dirname, "..");
 const workspaceRootDir = process.env.CAREER_WEB_DATA || path.join(rootDir, "workspace");
 const execFileAsync = promisify(execFile);
 const sessionStore = new AsyncLocalStorage();
+const authCookieName = process.env.AUTH_COOKIE_NAME || "career_web_auth";
+const authSessionSecret = process.env.AUTH_SESSION_SECRET || process.env.SESSION_SECRET || "career-web-local-dev-secret";
+const authRequireLogin = process.env.AUTH_REQUIRE_LOGIN === "true";
+const appOrigin = (process.env.APP_ORIGIN || process.env.PUBLIC_BASE_URL || "http://127.0.0.1:5174").replace(/\/$/, "");
+const phoneLoginEnabled = process.env.PHONE_LOGIN_ENABLED !== "false";
+const smsCodeTtlSeconds = Math.max(60, Number(process.env.SMS_CODE_TTL_SECONDS || 600));
+const smsCodeResendSeconds = Math.max(10, Number(process.env.SMS_CODE_RESEND_SECONDS || 60));
+const smsDevLoginEnabled = process.env.SMS_DEV_LOGIN_ENABLED === "true" || (process.env.NODE_ENV !== "production" && process.env.SMS_DEV_LOGIN_ENABLED !== "false");
+const smsDevCode = String(process.env.SMS_DEV_CODE || "123456").replace(/\D/g, "").slice(0, 6) || "123456";
+const aliyunSmsProvider = process.env.ALIYUN_SMS_PROVIDER || "aliyun_verify";
+const aliyunSmsConfig = {
+  accessKeyId: process.env.ALIYUN_ACCESS_KEY_ID || "",
+  accessKeySecret: process.env.ALIYUN_ACCESS_KEY_SECRET || "",
+  provider: aliyunSmsProvider,
+  signName: process.env.ALIYUN_SMS_SIGN_NAME || "速通互联验证码",
+  templateCode: process.env.ALIYUN_SMS_TEMPLATE_CODE || "100001",
+  templateParam: process.env.ALIYUN_SMS_TEMPLATE_PARAM || JSON.stringify({ code: "##code##", min: String(Math.ceil(smsCodeTtlSeconds / 60)) }),
+  regionId: process.env.ALIYUN_SMS_REGION_ID || "cn-hangzhou",
+  endpoint: process.env.ALIYUN_SMS_ENDPOINT || (aliyunSmsProvider === "aliyun_dysms" ? "https://dysmsapi.aliyuncs.com" : "https://dypnsapi.aliyuncs.com")
+};
+const wechatConfig = {
+  enabled: process.env.WECHAT_LOGIN_ENABLED === "true",
+  appId: process.env.WECHAT_APP_ID || "",
+  appSecret: process.env.WECHAT_APP_SECRET || "",
+  redirectUri: process.env.WECHAT_REDIRECT_URI || `${appOrigin}/api/auth/wechat/callback`
+};
+const devLoginEnabled = process.env.AUTH_DEV_LOGIN_ENABLED === "true" || (process.env.NODE_ENV !== "production" && !wechatConfig.enabled);
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
@@ -29,16 +57,20 @@ function asArray(value) {
 
 function buildDirs(workspaceDir) {
   return {
-  assets: path.join(workspaceDir, "career-assets"),
-  tasks: path.join(workspaceDir, "agent-tasks"),
-  results: path.join(workspaceDir, "agent-results"),
-  intake: path.join(workspaceDir, "intake"),
-  llmResults: path.join(workspaceDir, "llm-results"),
-  uploads: path.join(workspaceDir, "uploads"),
-  exports: path.join(workspaceDir, "exports"),
-  actionRuns: path.join(workspaceDir, "action-runs"),
-  system: path.join(workspaceDir, "system")
+    assets: path.join(workspaceDir, "career-assets"),
+    tasks: path.join(workspaceDir, "agent-tasks"),
+    results: path.join(workspaceDir, "agent-results"),
+    intake: path.join(workspaceDir, "intake"),
+    llmResults: path.join(workspaceDir, "llm-results"),
+    uploads: path.join(workspaceDir, "uploads"),
+    exports: path.join(workspaceDir, "exports"),
+    actionRuns: path.join(workspaceDir, "action-runs"),
+    system: path.join(workspaceDir, "system")
   };
+}
+
+function hashStableId(value, prefix = "id") {
+  return `${prefix}_${crypto.createHash("sha256").update(String(value || "anonymous")).digest("hex").slice(0, 32)}`;
 }
 
 function normalizeSessionId(value) {
@@ -47,11 +79,23 @@ function normalizeSessionId(value) {
   return "anonymous-session";
 }
 
-function buildSessionContext(sessionId) {
-  const safeSessionId = normalizeSessionId(sessionId);
+function buildSessionContext(sessionId, auth = null) {
+  const authIdentity = auth?.phoneHash || auth?.unionid || auth?.openid || auth?.userId || "";
+  const safeSessionId = authIdentity ? hashStableId(authIdentity, auth.provider || "user") : normalizeSessionId(sessionId);
   const workspaceDir = path.join(workspaceRootDir, "sessions", safeSessionId);
   return {
     sessionId: safeSessionId,
+    userId: authIdentity ? safeSessionId : "local-user",
+    auth: authIdentity ? {
+      provider: auth.provider || "wechat",
+      openid: auth.openid || "",
+      unionid: auth.unionid || "",
+      phoneHash: auth.phoneHash || "",
+      maskedPhone: auth.maskedPhone || "",
+      nickname: auth.nickname || "",
+      avatar: auth.avatar || "",
+      loginAt: auth.loginAt || ""
+    } : null,
     workspaceDir,
     dirs: buildDirs(workspaceDir)
   };
@@ -65,6 +109,10 @@ function getSessionContext() {
 
 function currentSessionId() {
   return getSessionContext().sessionId;
+}
+
+function currentUserId() {
+  return getSessionContext().userId || "local-user";
 }
 
 function currentWorkspaceDir() {
@@ -90,6 +138,323 @@ const assetFiles = {
   resumeStories: "resume-stories.md",
   websiteBrief: "website-brief.md"
 };
+
+function parseCookies(header = "") {
+  return Object.fromEntries(
+    String(header || "")
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const index = part.indexOf("=");
+        if (index === -1) return [part, ""];
+        return [decodeURIComponent(part.slice(0, index)), decodeURIComponent(part.slice(index + 1))];
+      })
+  );
+}
+
+function signValue(value) {
+  return crypto.createHmac("sha256", authSessionSecret).update(String(value || "")).digest("base64url");
+}
+
+function encodeSignedCookie(value) {
+  return `${value}.${signValue(value)}`;
+}
+
+function decodeSignedCookie(value) {
+  const raw = String(value || "");
+  const index = raw.lastIndexOf(".");
+  if (index <= 0) return "";
+  const payload = raw.slice(0, index);
+  const signature = raw.slice(index + 1);
+  const expected = signValue(payload);
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return "";
+  return payload;
+}
+
+function setAuthCookie(res, sessionId) {
+  const secure = appOrigin.startsWith("https://") || process.env.AUTH_COOKIE_SECURE === "true";
+  res.setHeader("Set-Cookie", [
+    `${authCookieName}=${encodeURIComponent(encodeSignedCookie(sessionId))}`,
+    "Path=/",
+    "HttpOnly",
+    "SameSite=Lax",
+    secure ? "Secure" : "",
+    `Max-Age=${60 * 60 * 24 * 30}`
+  ].filter(Boolean).join("; "));
+}
+
+function clearAuthCookie(res) {
+  res.setHeader("Set-Cookie", `${authCookieName}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`);
+}
+
+function authDir() {
+  return path.join(workspaceRootDir, "auth");
+}
+
+async function ensureAuthStore() {
+  await fs.mkdir(authDir(), { recursive: true });
+  await fs.writeFile(path.join(authDir(), ".gitkeep"), "", { flag: "a" });
+}
+
+async function readAuthJson(file, fallback) {
+  await ensureAuthStore();
+  try {
+    return JSON.parse(await fs.readFile(path.join(authDir(), file), "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return fallback;
+    throw error;
+  }
+}
+
+async function writeAuthJson(file, value) {
+  await ensureAuthStore();
+  await fs.writeFile(path.join(authDir(), file), JSON.stringify(value, null, 2), "utf8");
+}
+
+async function readAuthSession(req) {
+  const signed = parseCookies(req.headers.cookie || "")[authCookieName];
+  const sessionId = decodeSignedCookie(signed);
+  if (!sessionId) return null;
+  const sessions = await readAuthJson("sessions.json", {});
+  const session = sessions[sessionId];
+  if (!session || Date.parse(session.expiresAt || "") < Date.now()) return null;
+  return session;
+}
+
+async function createAuthSession(profile) {
+  const sessions = await readAuthJson("sessions.json", {});
+  const sessionId = crypto.randomUUID().replace(/-/g, "");
+  const now = new Date();
+  const session = {
+    id: sessionId,
+    provider: profile.provider || "phone",
+    userId: profile.userId || "",
+    openid: profile.openid || "",
+    unionid: profile.unionid || "",
+    phoneHash: profile.phoneHash || "",
+    maskedPhone: profile.maskedPhone || "",
+    nickname: profile.nickname || "",
+    avatar: profile.avatar || "",
+    loginAt: now.toISOString(),
+    expiresAt: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 30).toISOString()
+  };
+  sessions[sessionId] = session;
+  await writeAuthJson("sessions.json", sessions);
+  return session;
+}
+
+async function deleteAuthSession(req) {
+  const signed = parseCookies(req.headers.cookie || "")[authCookieName];
+  const sessionId = decodeSignedCookie(signed);
+  if (!sessionId) return;
+  const sessions = await readAuthJson("sessions.json", {});
+  delete sessions[sessionId];
+  await writeAuthJson("sessions.json", sessions);
+}
+
+function publicReturnPath(value = "") {
+  const raw = String(value || "/").trim() || "/";
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      const url = new URL(raw);
+      return `${url.pathname}${url.search}${url.hash}` || "/";
+    } catch {
+      return "/";
+    }
+  }
+  return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
+function wechatConfigured() {
+  return Boolean(wechatConfig.enabled && wechatConfig.appId && wechatConfig.appSecret && wechatConfig.redirectUri);
+}
+
+function aliyunSmsConfigured() {
+  return Boolean(aliyunSmsConfig.accessKeyId && aliyunSmsConfig.accessKeySecret && aliyunSmsConfig.signName && aliyunSmsConfig.templateCode);
+}
+
+function aliyunVerifyConfigured() {
+  return Boolean(aliyunSmsConfigured() && aliyunSmsConfig.provider === "aliyun_verify");
+}
+
+function normalizeMainlandPhone(value) {
+  const phone = String(value || "").replace(/[^\d]/g, "");
+  if (!/^1[3-9]\d{9}$/.test(phone)) throw new Error("请输入有效的中国大陆手机号。");
+  return phone;
+}
+
+function maskPhone(phone) {
+  return `${phone.slice(0, 3)}****${phone.slice(-4)}`;
+}
+
+function generateSmsCode() {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
+}
+
+function smsCodeHash(phone, code) {
+  return crypto.createHmac("sha256", authSessionSecret).update(`${phone}:${code}`).digest("hex");
+}
+
+function aliyunPercentEncode(value) {
+  return encodeURIComponent(String(value))
+    .replace(/[!'()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function sha256Hex(value) {
+  return crypto.createHash("sha256").update(value).digest("hex");
+}
+
+function hmacSha256Hex(secret, value) {
+  return crypto.createHmac("sha256", secret).update(value).digest("hex");
+}
+
+function buildAliyunAuthorization({ method, pathname, host, query, headers, body = "" }) {
+  const sortedQuery = Object.entries(query)
+    .filter(([, value]) => value !== undefined && value !== null && String(value) !== "")
+    .sort(([a], [b]) => a.localeCompare(b));
+  const canonicalQuery = sortedQuery
+    .map(([key, value]) => `${aliyunPercentEncode(key)}=${aliyunPercentEncode(value)}`)
+    .join("&");
+
+  const normalizedHeaders = Object.fromEntries(
+    Object.entries(headers)
+      .map(([key, value]) => [key.toLowerCase(), String(value).trim()])
+      .sort(([a], [b]) => a.localeCompare(b))
+  );
+  normalizedHeaders.host = host;
+  const signedHeaderNames = Object.keys(normalizedHeaders).sort();
+  const signedHeaders = signedHeaderNames.join(";");
+  const canonicalHeaders = signedHeaderNames.map((key) => `${key}:${normalizedHeaders[key]}\n`).join("");
+  const payloadHash = normalizedHeaders["x-acs-content-sha256"] || sha256Hex(body);
+  const canonicalRequest = [
+    method.toUpperCase(),
+    pathname || "/",
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join("\n");
+  const stringToSign = `ACS3-HMAC-SHA256\n${sha256Hex(canonicalRequest)}`;
+  const signature = hmacSha256Hex(aliyunSmsConfig.accessKeySecret, stringToSign);
+  return {
+    authorization: `ACS3-HMAC-SHA256 Credential=${aliyunSmsConfig.accessKeyId},SignedHeaders=${signedHeaders},Signature=${signature}`,
+    canonicalQuery,
+    payloadHash
+  };
+}
+
+async function sendAliyunSmsCode(phone, code) {
+  if (!aliyunSmsConfigured()) {
+    throw new Error("阿里云短信服务未配置。请设置 AccessKey、短信签名和模板 Code。");
+  }
+  if (aliyunSmsConfig.provider !== "aliyun_dysms") {
+    throw new Error("当前短信提供方不是普通短信服务。请使用短信认证接口发送验证码。");
+  }
+
+  const endpoint = new URL(aliyunSmsConfig.endpoint);
+  const method = "GET";
+  const pathname = endpoint.pathname && endpoint.pathname !== "/" ? endpoint.pathname : "/";
+  const query = {
+    RegionId: aliyunSmsConfig.regionId,
+    PhoneNumbers: phone,
+    SignName: aliyunSmsConfig.signName,
+    TemplateCode: aliyunSmsConfig.templateCode,
+    TemplateParam: JSON.stringify({ code })
+  };
+  const headers = {
+    host: endpoint.host,
+    "x-acs-action": "SendSms",
+    "x-acs-version": "2017-05-25",
+    "x-acs-date": new Date().toISOString().replace(/\..+/, "Z"),
+    "x-acs-signature-nonce": crypto.randomUUID(),
+    "x-acs-content-sha256": sha256Hex("")
+  };
+  const signed = buildAliyunAuthorization({ method, pathname, host: endpoint.host, query, headers });
+  const url = `${endpoint.origin}${pathname}?${signed.canonicalQuery}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      ...headers,
+      Authorization: signed.authorization
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.Code !== "OK") {
+    throw new Error(`阿里云短信发送失败：${data.Message || data.Code || response.statusText}`);
+  }
+  return data;
+}
+
+async function callAliyunVerifyApi(action, query) {
+  if (!aliyunVerifyConfigured()) {
+    throw new Error("阿里云短信认证未配置。请设置 AccessKey，并使用短信认证赠送签名和模板。");
+  }
+
+  const endpoint = new URL(aliyunSmsConfig.endpoint);
+  const method = "GET";
+  const pathname = endpoint.pathname && endpoint.pathname !== "/" ? endpoint.pathname : "/";
+  const headers = {
+    host: endpoint.host,
+    "x-acs-action": action,
+    "x-acs-version": "2017-05-25",
+    "x-acs-date": new Date().toISOString().replace(/\..+/, "Z"),
+    "x-acs-signature-nonce": crypto.randomUUID(),
+    "x-acs-content-sha256": sha256Hex("")
+  };
+  const signed = buildAliyunAuthorization({ method, pathname, host: endpoint.host, query, headers });
+  const url = `${endpoint.origin}${pathname}?${signed.canonicalQuery}`;
+  const response = await fetch(url, {
+    method,
+    headers: {
+      ...headers,
+      Authorization: signed.authorization
+    }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (action === "CheckSmsVerifyCode" && data.Code === "isv.ValidateFail") {
+    return { ...data, Success: true, Model: { ...(data.Model || {}), VerifyResult: "UNKNOWN" } };
+  }
+  if (!response.ok || data.Code !== "OK" || data.Success === false) {
+    throw new Error(`阿里云短信认证失败：${data.Message || data.Code || response.statusText}`);
+  }
+  return data;
+}
+
+async function sendAliyunVerifyCode(phone) {
+  const data = await callAliyunVerifyApi("SendSmsVerifyCode", {
+    RegionId: aliyunSmsConfig.regionId,
+    CountryCode: "86",
+    PhoneNumber: phone,
+    SignName: aliyunSmsConfig.signName,
+    TemplateCode: aliyunSmsConfig.templateCode,
+    TemplateParam: aliyunSmsConfig.templateParam,
+    CodeType: 1,
+    CodeLength: 6,
+    ValidTime: smsCodeTtlSeconds,
+    Interval: smsCodeResendSeconds,
+    DuplicatePolicy: 1,
+    ReturnVerifyCode: false
+  });
+  return data;
+}
+
+async function checkAliyunVerifyCode(phone, code) {
+  const data = await callAliyunVerifyApi("CheckSmsVerifyCode", {
+    RegionId: aliyunSmsConfig.regionId,
+    CountryCode: "86",
+    PhoneNumber: phone,
+    VerifyCode: code,
+    CaseAuthPolicy: 1
+  });
+  const result = data?.Model?.VerifyResult;
+  if (result !== "PASS") {
+    throw new Error("验证码不正确。");
+  }
+  return data;
+}
 
 const defaultAssets = {
   "profile.md": `# Profile
@@ -294,7 +659,6 @@ C-end product / B-end product / technical builder / operations-growth / manager 
 `
 };
 
-const localUserId = "local-user";
 const projectCardsFile = "project-cards.json";
 const usageLedgerFile = "usage-ledger.jsonl";
 
@@ -679,7 +1043,7 @@ async function startActionRun(stepId, context = {}) {
   const contract = actionContracts[stepId] || {};
   const run = {
     id: `${now.replace(/[:.]/g, "-")}-${slug(stepId)}`,
-    userId: localUserId,
+    userId: currentUserId(),
     stepId,
     status: "running",
     startedAt: now,
@@ -701,7 +1065,7 @@ async function finishActionRun(run, patch = {}) {
   };
   await writeActionRun(next);
   await appendUsageLedger({
-    userId: localUserId,
+    userId: currentUserId(),
     stepId: next.stepId,
     actionRunId: next.id,
     status: next.status,
@@ -1108,7 +1472,7 @@ async function buildOrchestratorState({ resumeMeta, llmResults, artifacts, intak
   const context = { resumeMeta, llmResults, jdText };
   const actions = Object.fromEntries(Object.keys(actionContracts).map((stepId) => [stepId, actionGate(stepId, context)]));
   return {
-    userId: localUserId,
+    userId: currentUserId(),
     stage,
     ...orchestratorStages[stage],
     actions,
@@ -1145,9 +1509,12 @@ async function artifactState() {
     const fullPath = path.join(dirs.exports, file);
     try {
       const stat = await fs.stat(fullPath);
+      const exportUrl = getSessionContext().auth
+        ? `/exports/${file}`
+        : `/exports/${file}?session=${encodeURIComponent(currentSessionId())}`;
       items[key] = {
         file,
-        url: `/exports/${file}?session=${encodeURIComponent(currentSessionId())}`,
+        url: exportUrl,
         size: stat.size,
         updatedAt: stat.mtime.toISOString()
       };
@@ -1311,14 +1678,278 @@ const app = express();
 app.use(express.json({ limit: "30mb" }));
 const jobs = new Map();
 
-function sessionMiddleware(req, res, next) {
-  const sessionId = normalizeSessionId(req.get("X-Career-Session-Id") || req.query.session);
-  const context = buildSessionContext(sessionId);
-  res.setHeader("X-Career-Session-Id", context.sessionId);
-  sessionStore.run(context, next);
+async function sessionMiddleware(req, res, next) {
+  try {
+    const authSession = await readAuthSession(req);
+    const isAuthRoute = String(req.originalUrl || "").startsWith("/api/auth/");
+    if (authRequireLogin && !authSession && !isAuthRoute) {
+      res.status(401).json({ ok: false, error: "请先登录后再继续。", authRequired: true });
+      return;
+    }
+    const sessionId = normalizeSessionId(req.get("X-Career-Session-Id") || req.query.session);
+    const context = buildSessionContext(sessionId, authSession);
+    res.setHeader("X-Career-Session-Id", context.sessionId);
+    sessionStore.run(context, next);
+  } catch (error) {
+    next(error);
+  }
 }
 
 app.use(["/api", "/exports"], sessionMiddleware);
+
+app.get("/api/auth/me", async (_req, res, next) => {
+  try {
+    const context = getSessionContext();
+    res.json({
+      ok: true,
+      auth: {
+        enabled: phoneLoginEnabled || wechatConfig.enabled || authRequireLogin || devLoginEnabled,
+        configured: phoneLoginEnabled,
+        phoneLoginEnabled,
+        smsConfigured: aliyunSmsConfigured(),
+        smsDevLoginEnabled,
+        requireLogin: authRequireLogin,
+        devLoginEnabled,
+        provider: context.auth?.provider || "",
+        user: context.auth ? {
+          id: context.userId,
+          nickname: context.auth.nickname || context.auth.maskedPhone,
+          maskedPhone: context.auth.maskedPhone,
+          avatar: context.auth.avatar,
+          provider: context.auth.provider
+        } : null
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/phone/send-code", async (req, res, next) => {
+  try {
+    if (!phoneLoginEnabled) throw new Error("手机号登录未启用。");
+    const phone = normalizeMainlandPhone(req.body?.phone);
+    const key = hashStableId(phone, "phone");
+    const codes = await readAuthJson("sms-codes.json", {});
+    const previous = codes[key];
+    const now = Date.now();
+    if (previous?.sentAt && now - Date.parse(previous.sentAt) < smsCodeResendSeconds * 1000) {
+      const remaining = Math.ceil((smsCodeResendSeconds * 1000 - (now - Date.parse(previous.sentAt))) / 1000);
+      res.json({
+        ok: true,
+        sent: false,
+        resendAfter: remaining,
+        message: `验证码刚刚发送过，请 ${remaining} 秒后再试。`
+      });
+      return;
+    }
+
+    const provider = aliyunVerifyConfigured() ? "aliyun_verify" : aliyunSmsConfigured() ? "aliyun_dysms" : "dev";
+    const code = provider === "dev" && smsDevLoginEnabled ? smsDevCode : generateSmsCode();
+    if (provider === "aliyun_verify") {
+      await sendAliyunVerifyCode(phone);
+    } else if (provider === "aliyun_dysms") {
+      await sendAliyunSmsCode(phone, code);
+    }
+
+    codes[key] = {
+      phoneHash: key,
+      codeHash: provider === "aliyun_verify" ? "" : smsCodeHash(phone, code),
+      sentAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + smsCodeTtlSeconds * 1000).toISOString(),
+      attempts: 0,
+      provider
+    };
+    await writeAuthJson("sms-codes.json", codes);
+    res.json({
+      ok: true,
+      sent: true,
+      resendAfter: smsCodeResendSeconds,
+      expiresIn: smsCodeTtlSeconds,
+      maskedPhone: maskPhone(phone),
+      devCode: provider === "dev" && smsDevLoginEnabled ? code : undefined,
+      message: provider === "dev" ? `本地测试验证码：${code}` : "验证码已发送。"
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/phone/login", async (req, res, next) => {
+  try {
+    if (!phoneLoginEnabled) throw new Error("手机号登录未启用。");
+    const phone = normalizeMainlandPhone(req.body?.phone);
+    const code = String(req.body?.code || "").replace(/\D/g, "");
+    if (!/^\d{6}$/.test(code)) throw new Error("请输入 6 位短信验证码。");
+
+    const key = hashStableId(phone, "phone");
+    const codes = await readAuthJson("sms-codes.json", {});
+    const saved = codes[key];
+    if (!saved || Date.parse(saved.expiresAt || "") < Date.now()) {
+      delete codes[key];
+      await writeAuthJson("sms-codes.json", codes);
+      throw new Error("验证码已过期，请重新获取。");
+    }
+    if (Number(saved.attempts || 0) >= 5) {
+      delete codes[key];
+      await writeAuthJson("sms-codes.json", codes);
+      throw new Error("验证码错误次数过多，请重新获取。");
+    }
+    if (saved.provider === "aliyun_verify") {
+      try {
+        await checkAliyunVerifyCode(phone, code);
+      } catch (error) {
+        saved.attempts = Number(saved.attempts || 0) + 1;
+        await writeAuthJson("sms-codes.json", codes);
+        throw error;
+      }
+    } else {
+      const expected = saved.codeHash || "";
+      const actual = smsCodeHash(phone, code);
+      const a = Buffer.from(actual);
+      const b = Buffer.from(expected);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        saved.attempts = Number(saved.attempts || 0) + 1;
+        await writeAuthJson("sms-codes.json", codes);
+        throw new Error("验证码不正确。");
+      }
+    }
+
+    delete codes[key];
+    await writeAuthJson("sms-codes.json", codes);
+    const maskedPhone = maskPhone(phone);
+    const authSession = await createAuthSession({
+      provider: "phone",
+      userId: key,
+      phoneHash: key,
+      maskedPhone,
+      nickname: maskedPhone
+    });
+    setAuthCookie(res, authSession.id);
+    res.json({
+      ok: true,
+      user: {
+        id: hashStableId(key, "phone"),
+        nickname: maskedPhone,
+        maskedPhone,
+        provider: "phone"
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/auth/wechat/start", async (req, res, next) => {
+  try {
+    if (!wechatConfigured()) throw new Error("微信登录尚未配置。请设置 WECHAT_LOGIN_ENABLED、WECHAT_APP_ID、WECHAT_APP_SECRET 和 WECHAT_REDIRECT_URI。");
+    const states = await readAuthJson("oauth-states.json", {});
+    const state = crypto.randomUUID().replace(/-/g, "");
+    states[state] = {
+      returnTo: publicReturnPath(req.query.returnTo || "/"),
+      createdAt: new Date().toISOString()
+    };
+    await writeAuthJson("oauth-states.json", states);
+    const params = new URLSearchParams({
+      appid: wechatConfig.appId,
+      redirect_uri: wechatConfig.redirectUri,
+      response_type: "code",
+      scope: "snsapi_login",
+      state
+    });
+    res.redirect(`https://open.weixin.qq.com/connect/qrconnect?${params.toString()}#wechat_redirect`);
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/auth/wechat/callback", async (req, res, next) => {
+  try {
+    const code = String(req.query.code || "");
+    const state = String(req.query.state || "");
+    if (!code || !state) throw new Error("微信登录回调缺少 code 或 state。");
+    const states = await readAuthJson("oauth-states.json", {});
+    const savedState = states[state];
+    delete states[state];
+    await writeAuthJson("oauth-states.json", states);
+    if (!savedState || Date.now() - Date.parse(savedState.createdAt || "") > 1000 * 60 * 10) {
+      throw new Error("微信登录状态已失效，请重新登录。");
+    }
+
+    const tokenParams = new URLSearchParams({
+      appid: wechatConfig.appId,
+      secret: wechatConfig.appSecret,
+      code,
+      grant_type: "authorization_code"
+    });
+    const tokenResponse = await fetch(`https://api.weixin.qq.com/sns/oauth2/access_token?${tokenParams.toString()}`);
+    const tokenData = await tokenResponse.json();
+    if (!tokenResponse.ok || tokenData.errcode) {
+      throw new Error(`微信登录换取 token 失败：${tokenData.errmsg || tokenResponse.statusText}`);
+    }
+
+    let profile = {
+      provider: "wechat",
+      openid: tokenData.openid || "",
+      unionid: tokenData.unionid || "",
+      nickname: "",
+      avatar: ""
+    };
+    try {
+      const userParams = new URLSearchParams({
+        access_token: tokenData.access_token,
+        openid: tokenData.openid,
+        lang: "zh_CN"
+      });
+      const userResponse = await fetch(`https://api.weixin.qq.com/sns/userinfo?${userParams.toString()}`);
+      const userData = await userResponse.json();
+      if (userResponse.ok && !userData.errcode) {
+        profile = {
+          ...profile,
+          nickname: userData.nickname || "",
+          avatar: userData.headimgurl || "",
+          unionid: userData.unionid || profile.unionid
+        };
+      }
+    } catch {
+      // User profile is optional. openid/unionid are enough for session isolation.
+    }
+
+    const authSession = await createAuthSession(profile);
+    setAuthCookie(res, authSession.id);
+    res.redirect(publicReturnPath(savedState.returnTo || "/"));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/dev-login", async (req, res, next) => {
+  try {
+    if (!devLoginEnabled) throw new Error("本地测试登录未启用。");
+    const name = String(req.body?.name || "本地测试用户").trim().slice(0, 40);
+    const authSession = await createAuthSession({
+      provider: "dev",
+      openid: hashStableId(name, "dev_openid"),
+      unionid: hashStableId(name, "dev_unionid"),
+      nickname: name,
+      avatar: ""
+    });
+    setAuthCookie(res, authSession.id);
+    res.json({ ok: true, user: { id: hashStableId(authSession.unionid, "dev"), nickname: authSession.nickname, provider: "dev" } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/auth/logout", async (req, res, next) => {
+  try {
+    await deleteAuthSession(req);
+    clearAuthCookie(res);
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.get("/exports/:file", async (req, res, next) => {
   try {
@@ -1447,7 +2078,12 @@ app.get("/api/state", async (_req, res, next) => {
     const llmResults = await listLlmResults(dirs.llmResults);
     const artifacts = await artifactState();
     res.json({
-      user: { id: localUserId, mode: "local_session_user", sessionId: currentSessionId() },
+      user: {
+        id: currentUserId(),
+        mode: getSessionContext().auth ? "authenticated" : "local_session_user",
+        sessionId: currentSessionId(),
+        auth: getSessionContext().auth
+      },
       workspaceDir: currentWorkspaceDir(),
       workspaceRootDir,
       assetFiles,

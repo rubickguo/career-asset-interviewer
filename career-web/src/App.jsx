@@ -8,12 +8,16 @@ import {
   FileText,
   FolderOpen,
   Globe2,
+  LogIn,
+  LogOut,
   Loader2,
   RotateCcw,
   Save,
   Sparkles,
+  Smartphone,
   Target,
-  Upload
+  Upload,
+  UserRound
 } from "lucide-react";
 
 const APP_BASE = import.meta.env.BASE_URL || "/";
@@ -195,6 +199,23 @@ const waitingTips = [
 async function api(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", "X-Career-Session-Id": getSessionId(), ...(options.headers || {}) },
+    credentials: "include",
+    ...options
+  });
+  const data = await response.json();
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.error || "Request failed");
+    error.status = response.status;
+    error.data = data;
+    throw error;
+  }
+  return data;
+}
+
+async function authApi(path, options = {}) {
+  const response = await fetch(`${API_BASE}${path}`, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    credentials: "include",
     ...options
   });
   const data = await response.json();
@@ -489,8 +510,9 @@ function gapQuestionsFromResult(result) {
     .slice(0, 3);
 }
 
-function StepShell({ view, routeId = "", status, busy, onReset, state, children }) {
+function StepShell({ view, routeId = "", status, busy, onReset, onLogout, state, auth, children }) {
   const stepMeta = currentStepMeta(view, routeId);
+  const user = auth?.user || state?.user?.auth;
   return (
     <main className="app-shell">
       <header className="top-nav">
@@ -512,10 +534,24 @@ function StepShell({ view, routeId = "", status, busy, onReset, state, children 
         <div className="mobile-step-indicator">
           {stepMeta.index}/{stepMeta.total} {stepMeta.label}
         </div>
-        <button className="reset-button" onClick={onReset} aria-label="重置流程" disabled={busy}>
-          {busy ? <Loader2 className="spin" size={18} /> : <RotateCcw size={18} />}
-          <span>重置</span>
-        </button>
+        <div className="nav-actions">
+          {user ? (
+            <button className="auth-chip" onClick={onLogout} type="button" title="退出登录">
+              <UserRound size={16} />
+              <span>{user.nickname || "已登录"}</span>
+              <LogOut size={15} />
+            </button>
+          ) : (
+            <button className="auth-chip" onClick={() => goTo("login")} type="button">
+              <LogIn size={16} />
+              <span>登录</span>
+            </button>
+          )}
+          <button className="reset-button" onClick={onReset} aria-label="重置流程" disabled={busy}>
+            {busy ? <Loader2 className="spin" size={18} /> : <RotateCcw size={18} />}
+            <span>重置</span>
+          </button>
+        </div>
       </header>
       {children}
       {status && <div className="toast">{status}</div>}
@@ -725,14 +761,22 @@ function WaitingPage({ stepId, busy, onRefresh }) {
   );
 }
 
-function LandingPage() {
+function LandingPage({ auth }) {
+  const user = auth?.user;
   return (
     <main className="landing-page">
       <header className="landing-nav">
         <button className="brand" onClick={() => goTo("landing")}>
           <span>仙人指路</span>
         </button>
-        <button className="nav-link" onClick={() => goTo("jd")}>分析 JD</button>
+        <div className="landing-nav-actions">
+          <button className="nav-link" onClick={() => goTo("jd")}>分析 JD</button>
+          {user ? (
+            <button className="nav-link" onClick={() => goTo("upload")}>{user.nickname || "继续使用"}</button>
+          ) : (
+            <button className="nav-link" onClick={() => goTo("login")}>手机号登录</button>
+          )}
+        </div>
       </header>
       <section className="landing-center">
         <p className="eyebrow">职业资产工作台</p>
@@ -753,6 +797,64 @@ function LandingPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function LoginPage({ auth, busy, phoneInput, phoneCode, phoneCooldown, setPhoneInput, setPhoneCode, onSendPhoneCode, onPhoneLogin }) {
+  return (
+    <section className="step-page login-page">
+      <div className="step-copy">
+        <p className="eyebrow">登录与隔离</p>
+        <h1>用手机号进入你的职业资产库。</h1>
+        <p>
+          验证码只用于登录和隔离数据。登录后，你的简历、访谈回答、项目卡和导出文件会进入独立空间，不会和其他人的流程混在一起。
+        </p>
+        <form
+          className="login-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onPhoneLogin();
+          }}
+        >
+          <label className="login-field">
+            <span>手机号</span>
+            <input
+              value={phoneInput}
+              onChange={(event) => setPhoneInput(event.target.value)}
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="请输入中国大陆手机号"
+              disabled={busy}
+            />
+          </label>
+          <label className="login-field">
+            <span>验证码</span>
+            <div className="code-row">
+              <input
+                value={phoneCode}
+                onChange={(event) => setPhoneCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="6 位验证码"
+                disabled={busy}
+              />
+              <button className="code-button" type="button" onClick={onSendPhoneCode} disabled={busy || phoneCooldown > 0}>
+                {phoneCooldown > 0 ? `${phoneCooldown}s` : "获取验证码"}
+              </button>
+            </div>
+          </label>
+          <PrimaryButton icon={LogIn} disabled={busy} type="submit">
+            登录并继续
+          </PrimaryButton>
+          {!auth?.smsConfigured && auth?.smsDevLoginEnabled && (
+            <div className="login-note">
+              <Smartphone size={18} />
+              <span>当前是本地测试模式，验证码会直接显示在页面提示里；线上配置阿里云短信后会真实发送。</span>
+            </div>
+          )}
+        </form>
+      </div>
+    </section>
   );
 }
 
@@ -1545,9 +1647,14 @@ function GuardPage({ title, text, target }) {
   );
 }
 
+function isProtectedRoute(route) {
+  return !["landing", "login"].includes(route.view);
+}
+
 function App() {
   const [route, setRoute] = useState(routeFromHash);
   const [state, setState] = useState(null);
+  const [auth, setAuth] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1557,11 +1664,30 @@ function App() {
   const [jdHydrated, setJdHydrated] = useState(false);
   const [projectDrafts, setProjectDrafts] = useState([]);
   const [projectsHydrated, setProjectsHydrated] = useState(false);
+  const [phoneInput, setPhoneInput] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneCooldown, setPhoneCooldown] = useState(0);
+
+  async function loadAuth() {
+    const next = await authApi("/auth/me");
+    setAuth(next.auth);
+    return next.auth;
+  }
 
   async function loadState() {
-    const next = await api("/state");
-    setState(next);
-    return next;
+    try {
+      const next = await api("/state");
+      setState(next);
+      return next;
+    } catch (error) {
+      if (error.status === 401) {
+        setState(null);
+        setStatus(error.message);
+        if (isProtectedRoute(route)) goTo("login");
+        return null;
+      }
+      throw error;
+    }
   }
 
   async function resetFlow() {
@@ -1589,11 +1715,94 @@ function App() {
     }
   }
 
+  async function sendPhoneCode() {
+    const phone = phoneInput.replace(/[^\d]/g, "");
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setStatus("请输入有效的中国大陆手机号。");
+      return;
+    }
+    setBusy(true);
+    setStatus("正在发送验证码...");
+    try {
+      const next = await authApi("/auth/phone/send-code", {
+        method: "POST",
+        body: JSON.stringify({ phone })
+      });
+      setPhoneCooldown(Number(next.resendAfter || 60));
+      if (next.devCode) setPhoneCode(next.devCode);
+      setStatus(next.message || "验证码已发送。");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function phoneLogin() {
+    const phone = phoneInput.replace(/[^\d]/g, "");
+    const code = phoneCode.replace(/[^\d]/g, "");
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setStatus("请输入有效的中国大陆手机号。");
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      setStatus("请输入 6 位短信验证码。");
+      return;
+    }
+    setBusy(true);
+    setStatus("正在登录...");
+    try {
+      await authApi("/auth/phone/login", {
+        method: "POST",
+        body: JSON.stringify({ phone, code })
+      });
+      await loadAuth();
+      await loadState();
+      setPhoneCode("");
+      setStatus("");
+      goTo("upload");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function logout() {
+    setBusy(true);
+    setStatus("正在退出登录...");
+    try {
+      await authApi("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+      await loadAuth();
+      setState(null);
+      setAnswers({});
+      setAnswersHydrated(false);
+      setProjectDrafts([]);
+      setProjectsHydrated(false);
+      setPhoneCode("");
+      window.sessionStorage.removeItem("career-web-waiting");
+      setStatus("");
+      goTo("landing");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   useEffect(() => {
     const onHash = () => setRoute(routeFromHash());
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+
+  useEffect(() => {
+    if (phoneCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setPhoneCooldown((value) => Math.max(0, value - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [phoneCooldown]);
 
   useEffect(() => {
     if ("scrollRestoration" in window.history) {
@@ -1606,7 +1815,9 @@ function App() {
   }, [route.view, route.id]);
 
   useEffect(() => {
-    loadState().catch((error) => setStatus(error.message));
+    loadAuth()
+      .then(() => loadState())
+      .catch((error) => setStatus(error.message));
   }, []);
 
   useEffect(() => {
@@ -1838,7 +2049,7 @@ function App() {
     );
   }
 
-  if (!state && route.view !== "landing") {
+  if (!state && !["landing", "login"].includes(route.view)) {
     return (
       <main className="loading-page">
         <Loader2 className="spin" size={26} />
@@ -1847,10 +2058,28 @@ function App() {
     );
   }
 
-  if (route.view === "landing") return <LandingPage />;
+  if (route.view === "landing") return <LandingPage auth={auth} />;
+
+  if (route.view === "login") {
+    return (
+      <StepShell view={route.view} routeId={route.id} status={status} busy={busy} onReset={resetFlow} onLogout={logout} auth={auth} state={state}>
+        <LoginPage
+          auth={auth}
+          busy={busy}
+          phoneInput={phoneInput}
+          phoneCode={phoneCode}
+          phoneCooldown={phoneCooldown}
+          setPhoneInput={setPhoneInput}
+          setPhoneCode={setPhoneCode}
+          onSendPhoneCode={sendPhoneCode}
+          onPhoneLogin={phoneLogin}
+        />
+      </StepShell>
+    );
+  }
 
   return (
-    <StepShell view={route.view} routeId={route.id} status={status} busy={busy} onReset={resetFlow} state={state}>
+    <StepShell view={route.view} routeId={route.id} status={status} busy={busy} onReset={resetFlow} onLogout={logout} auth={auth} state={state}>
       {route.view === "upload" && (
         <UploadPage
           selectedFile={selectedFile}
@@ -1936,7 +2165,7 @@ function App() {
       )}
       {route.view === "waiting" && <WaitingPage stepId={route.id} busy={busy} onRefresh={loadState} />}
       {route.view === "dev" && <DevPage state={state} />}
-      {!["upload", "diagnosis", "interview", "projects", "project", "resume", "jd", "insight", "waiting", "dev"].includes(route.view) && (
+      {!["upload", "diagnosis", "interview", "projects", "project", "resume", "jd", "insight", "waiting", "dev", "login"].includes(route.view) && (
         <GuardPage title="页面不存在" text="回到首页重新开始。" target="landing" />
       )}
     </StepShell>
