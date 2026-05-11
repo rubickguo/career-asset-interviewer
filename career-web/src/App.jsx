@@ -505,8 +505,10 @@ function strategyBlocksRender(strategy) {
     resultNeedsUser(strategy) ||
     nextActionOf(strategy) === "ask_resume_gap_questions" ||
     asArray(strategy?.questions).length > 0;
+  const actionableQuestions = resumeEvidenceQuestionsFromStrategy(strategy, { includeFallback: false });
   return Boolean(
     !strategyHasRenderableResume(strategy) ||
+      actionableQuestions.length > 0 ||
       (asksForUser && resumeEvidenceQuestionsFromStrategy(strategy, { includeFallback: true }).length > 0)
   );
 }

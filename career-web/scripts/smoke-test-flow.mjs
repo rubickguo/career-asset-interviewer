@@ -590,6 +590,7 @@ async function main() {
   const blockedJob = await pollJobStatus(blockedJobStart.data.job.id);
   assert.equal(blockedJob.status, "failed");
   assert.match(blockedJob.error, /简历证据补充|待确认|简历策略/);
+  assertNotIncludes(blockedJob.error, ["需要先生成简历策略"], "resume render blocked reason");
 
   await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), {
     ...resumeStrategyPayload,

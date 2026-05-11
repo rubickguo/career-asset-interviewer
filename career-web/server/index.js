@@ -1187,12 +1187,19 @@ function resultRecommended(results, stepId, actions) {
   return actions.includes(recommendedNextAction(results, stepId));
 }
 
+function actionableResumeStrategyQuestions(result) {
+  return [
+    ...asArray(result?.questions),
+    ...asArray(result?.pendingQuestions)
+  ].filter(questionLooksUsefulForResumeStrategy);
+}
+
 function resumeStrategyHasBlockingGaps(result) {
   if (scoreMeetsThreshold(result) && hasPublicResumeSource(result)) return false;
+  const hasActionableQuestions = actionableResumeStrategyQuestions(result).length > 0;
   return Boolean(
     result?.readiness?.shouldAskUser ||
-      asArray(result?.questions).length ||
-      asArray(result?.pendingQuestions).length ||
+      hasActionableQuestions ||
       !hasPublicResumeSource(result)
   );
 }
@@ -1344,7 +1351,7 @@ function questionLooksLikeDocumentProofRequest(question) {
 function questionLooksUsefulForResumeStrategy(question) {
   const text = String(question?.question || question || "");
   if (questionLooksLikeDocumentProofRequest(text)) return false;
-  return /指标|数据|效率|准确率|覆盖|规模|人数|采用|反馈|留存|转化|成本|流水|收入|GitHub|作品集|Demo|文章|产品页|链接|公开|脱敏/i.test(text);
+  return /指标|数据|效率|准确率|覆盖|规模|人数|采用|反馈|留存|转化|成本|流水|收入|前后|变化|复核|错误|人工|GitHub|作品集|Demo|文章|产品页|链接|公开|脱敏|bullet|口径|claim|强弱/i.test(text);
 }
 
 function sanitizeQuestionsForStep(stepId, questions) {
@@ -1638,12 +1645,13 @@ function actionGate(stepId, context) {
   const hasJd = Boolean(String(context.jdText || "").replace(/^# JD\s*/i, "").trim());
   const careerReadyForProjects = done(results, "career_direction") && !stepNeedsUser(results, "career_direction", context.intake);
   const projectReadyForStrategy = allowsResumeStrategy(results, context.intake);
-  const strategyReadyForRender = done(results, "resume_strategy") && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result);
+  const resumeStrategyDone = done(results, "resume_strategy");
+  const strategyReadyForRender = resumeStrategyDone && !resumeStrategyHasBlockingGaps(results.resume_strategy?.result);
   const gates = {
     career_direction: [hasResume, "需要先上传并解析简历。"],
     project_mining: [careerReadyForProjects, stepNeedsUser(results, "career_direction", context.intake) ? "需要先完成第一轮职业方向访谈。" : "需要先完成职业方向诊断。"],
     resume_strategy: [projectReadyForStrategy, stepNeedsUser(results, "project_mining", context.intake) ? "需要先完成第二轮项目证据确认。" : "需要先完成项目证据提炼，或由模型判断现有信息已足够生成简历策略。"],
-    resume_render: [strategyReadyForRender, stepNeedsUser(results, "resume_strategy", context.intake) ? "需要先完成简历证据补充，才能生成正式预览。" : "需要先生成简历策略。"],
+    resume_render: [strategyReadyForRender, resumeStrategyDone ? "需要先完成简历证据补充，才能生成正式预览。" : "需要先生成简历策略。"],
     jd_fit: [done(results, "career_direction") && hasJd, hasJd ? "需要先完成职业方向诊断。" : "需要先粘贴 JD。"],
     personal_site: [done(results, "project_mining") && !stepNeedsUser(results, "project_mining", context.intake) && strategyReadyForRender, "需要先完成项目证据和简历策略。"]
   };
