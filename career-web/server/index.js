@@ -1501,13 +1501,32 @@ function sanitizeUnconfirmedRoleClaims(value, sourceText) {
 function fallbackMirrorCard(result) {
   const headline = String(result?.headline || result?.judgment || "这一轮已经补充了重要信息。");
   const advice = result?.adviceCard || {};
-  const confirm = asArray(advice.whatToConfirm)[0] || asArray(result?.questions)[0]?.question || "下一步需要继续确认项目证据和角色边界。";
+  const keywordSources = [
+    result?.recommendedTrack,
+    result?.assetUpdates?.keywords,
+    ...asArray(result?.keywordOrder),
+    ...asArray(result?.narratives).map((item) => item?.title),
+    ...asArray(result?.skillEvidence).map((item) => item?.skill)
+  ];
+  const userKeywords = keywordSources
+    .flatMap((item) => String(item || "").split(/[、/，,｜|]/))
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 8);
   return {
+    heading: "这一轮留下来的线索",
     hit: headline,
-    tension: advice.why || "现在能看到一些方向信号，但还需要分清哪些是已经发生过的事实，哪些只是待验证的方向假设。",
-    workPattern: "你更适合用具体项目、角色边界和指标口径来说明自己，而不是先给自己贴一个岗位标签。",
-    evidenceBoundary: "我先不急着把它写成简历优势，因为还需要确认项目中的真实角色、关键动作和可公开结果。",
-    nextValidation: confirm,
+    sections: [
+      {
+        title: "正在叠加到职业资产库的认知",
+        content: advice.why || "现在能看到一些方向信号，但还需要分清哪些是已经发生过的事实，哪些只是待验证的方向假设。"
+      },
+      {
+        title: "需要谨慎处理的边界",
+        content: "还需要确认项目中的真实角色、关键动作、指标口径和可公开结果，避免把待验证假设直接写成简历优势。"
+      }
+    ],
+    userKeywords: userKeywords.length ? userKeywords : ["职业方向", "项目证据", "角色边界", "指标口径"],
     feedbackOptions: [
       "这里把我的方向判断说得太窄了",
       "这里低估了我已有的项目证据",

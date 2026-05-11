@@ -102,7 +102,11 @@ async function main() {
   assert.match(appSource, /第二轮留下来的证据线索/);
   assert.match(appSource, /生成简历前的最后确认/);
   assert.match(appSource, /按“前后对比”说清楚/);
-  assert.match(appSource, /下一步怎么处理/);
+  assert.match(appSource, /我眼中的你/);
+  assert.match(appSource, /正在叠加到职业资产库的认知/);
+  assert.match(appSource, /用户关键词/);
+  assert.match(appSource, /mirrorKeywords/);
+  assertNotIncludes(appSource, ["下一步怎么处理", "这里有一个拉扯", "一个正在浮现的工作模式", "我先不急着下结论，因为", "nextSignalLead"], "App source");
   assert.match(appSource, /insight-action/);
   assert.match(appSource, /我们从你简历中发现的事/);
   assert.match(appSource, /简历初步诊断/);
@@ -158,6 +162,10 @@ async function main() {
   assert.match(workflowSource, /作品集、GitHub、Demo、文章、产品页/);
   assert.match(workflowSource, /answerQuality/);
   assert.match(workflowSource, /expectedScoreGain/);
+  assert.match(workflowSource, /userKeywords/);
+  assert.match(workflowSource, /sections/);
+  assert.match(workflowSource, /用户关键词/);
+  assertNotIncludes(workflowSource, ["nextValidation 要把下一轮问题包装成", "\"nextValidation\""], "workflow prompt");
   assert.match(workflowSource, /recommendedNextAction/);
   assert.match(workflowSource, /adviceCard/);
   assert.match(workflowSource, /resumeDiagnosisCard/);

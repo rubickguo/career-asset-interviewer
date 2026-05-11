@@ -301,6 +301,47 @@ function feedbackOptionsFor(type, mirror) {
   return fallback[type] || fallback.direction;
 }
 
+function splitKeywords(value) {
+  return asArray(value)
+    .flatMap((item) => String(item || "").split(/[、/，,｜|]/))
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function dedupeList(items, limit = 8) {
+  const seen = new Set();
+  const result = [];
+  for (const item of items.map((value) => String(value || "").trim()).filter(Boolean)) {
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(item);
+    if (result.length >= limit) break;
+  }
+  return result;
+}
+
+function mirrorKeywords(type, mirror, careerResult, projectResult, strategyResult) {
+  const explicit = dedupeList(splitKeywords(mirror?.userKeywords), 8);
+  if (explicit.length) return explicit;
+  const fromStrategy = splitKeywords(strategyResult?.keywordOrder);
+  const fromCareer = [
+    ...splitKeywords(careerResult?.assetUpdates?.keywords),
+    ...splitKeywords(careerResult?.recommendedTrack),
+    ...asArray(careerResult?.narratives).map((item) => item?.title)
+  ];
+  const fromProjects = [
+    ...asArray(projectResult?.skillEvidence).map((item) => item?.skill),
+    ...asArray(projectResult?.priorityProjects).map((item) => item?.name)
+  ];
+  const fallback = type === "gaps"
+    ? ["简历定位", "项目证据", "指标口径", "公开边界"]
+    : type === "projects"
+      ? ["项目证据", "角色边界", "结果指标", "关键取舍"]
+      : ["职业方向", "工作方式", "擅长场景", "反偏好"];
+  return dedupeList([...fromStrategy, ...fromCareer, ...fromProjects, ...fallback], 8);
+}
+
 function parseSavedAnswers(raw) {
   try {
     const parsed = JSON.parse(raw || "{}");
@@ -1171,31 +1212,73 @@ function ProjectsPage({ result, cards, busy, onMine, onSave, onResume }) {
 }
 
 function buildMirror(type, careerResult, projectResult, strategyResult) {
+  const withDefaults = (mirror, fallback) => {
+    const merged = { ...fallback, ...(mirror || {}) };
+    const sections = asArray(merged.sections).filter((item) => item?.title || item?.content);
+    if (sections.length < 2) {
+      merged.sections = [
+        ...sections,
+        {
+          title: "正在叠加到职业资产库的认知",
+          content: merged.assetInsight || merged.workPattern || merged.tension || fallback.sections?.[0]?.content
+        },
+        {
+          title: "需要谨慎处理的边界",
+          content: merged.boundary || merged.evidenceBoundary || fallback.sections?.[1]?.content
+        }
+      ].filter((item) => item?.content).slice(0, 2);
+    } else {
+      merged.sections = sections.slice(0, 2);
+    }
+    merged.userKeywords = mirrorKeywords(type, merged, careerResult, projectResult, strategyResult);
+    return merged;
+  };
   if (type === "direction") {
-    return careerResult?.mirrorCard || {
+    return withDefaults(careerResult?.mirrorCard, {
+      heading: "这一轮留下来的线索",
       hit: careerResult?.headline || careerResult?.judgment || "你不是来简单改简历的，你是在确认过去这些经历能不能通向一个更适合自己的位置。",
-      tension: "你一方面想延续已经积累过的东西，另一方面又不想被旧岗位里的低判断空间固定住。",
-      workPattern: "当事情不清楚、边界不明确时，你更容易先去拆结构、找证据、确认问题，而不是直接把自己包装成某个标签。",
-      evidenceBoundary: "我先不急着下结论，因为现在还缺具体项目来证明这不是偏好，而是你已经做成过的能力。",
-      nextValidation: "下一步我们只验证一件事：过去有没有一个项目，能证明你真的做过这种判断和推进。"
-    };
+      sections: [
+        {
+          title: "正在叠加到职业资产库的认知",
+          content: "目前先保留的是你的方向偏好、反偏好、擅长场景和候选叙事；这些会影响后面项目怎么排序、简历关键词怎么收束。"
+        },
+        {
+          title: "需要谨慎处理的边界",
+          content: "现在还不能把兴趣、疲惫或短期逃离感直接写成职业定位，需要继续用项目证据区分真实能力和待验证假设。"
+        }
+      ]
+    });
   }
   if (type === "projects") {
-    return projectResult?.mirrorCard || {
+    return withDefaults(projectResult?.mirrorCard, {
+      heading: "项目里留下来的证据",
       hit: projectResult?.headline || "你不是经历少，而是很多经历还没有被整理成证据。",
-      tension: "你想让别人看到你的能力，但又不能把参与过的事情都写成主导，这里面需要很清楚的边界。",
-      workPattern: "当一个项目值得写时，通常不是因为它看起来大，而是因为里面有你的判断、取舍、行动和结果。",
-      evidenceBoundary: "我先不急着把项目写成优势，因为每个项目还需要确认角色边界和指标可信度。",
-      nextValidation: "下一步我们只验证一件事：哪些项目可以被写成可信证据，哪些只能作为辅助经历。"
-    };
+      sections: [
+        {
+          title: "正在叠加到职业资产库的认知",
+          content: "会进入资产库的是项目里的角色边界、关键行动、取舍判断和结果口径，而不是项目名称本身。"
+        },
+        {
+          title: "需要谨慎处理的边界",
+          content: "参与、推动、负责和主导需要分清；缺少指标的项目可以保留，但要降低表达强度。"
+        }
+      ]
+    });
   }
-  return strategyResult?.mirrorCard || {
+  return withDefaults(strategyResult?.mirrorCard, {
+    heading: "生成简历前的最后确认",
     hit: strategyResult?.headline || "现在不是继续堆经历，而是决定别人应该先记住哪个你。",
-    tension: "你既希望简历完整，又需要避免把信息铺得太散，导致真正有价值的证据被淹没。",
-    workPattern: "一份更好的简历会把项目、关键词和表达顺序收束到同一条叙事里。",
-    evidenceBoundary: "我先不急着把所有表达写死，因为还有些数据、公开边界和项目优先级需要你确认。",
-    nextValidation: "下一步我们只验证一件事：这份策略是否真的能解释你的过去，也能支撑你想去的方向。"
-  };
+    sections: [
+      {
+        title: "正在叠加到职业资产库的认知",
+        content: "现在会沉淀的是简历主叙事、关键词顺序、项目表达强弱和可以公开展示的证据。"
+      },
+      {
+        title: "需要谨慎处理的边界",
+        content: "数据口径、公司内部信息、角色边界和证据不足的 claim 都不能写太满，否则面试时会被追问到失真。"
+      }
+    ]
+  });
 }
 
 function buildResumeDiagnosis(result) {
@@ -1296,7 +1379,7 @@ function AdviceCard({ advice }) {
   return (
     <article className="advice-card">
       <div className="advice-main">
-        <p className="eyebrow">下一步怎么处理</p>
+        <p className="eyebrow">阶段建议</p>
         <h2>{recommendation}</h2>
         {reason && <p className="advice-reason">{reason}</p>}
       </div>
@@ -1316,13 +1399,7 @@ function mirrorHeading(type, mirror) {
   if (mirror?.heading) return mirror.heading;
   if (type === "direction") return "本轮最值得留下的判断";
   if (type === "projects") return "项目里最需要补证据的地方";
-  return "生成简历前要守住的边界";
-}
-
-function nextSignalLead(type) {
-  if (type === "projects") return "第二轮再补几个关键事实。";
-  if (type === "gaps") return "最后确认几个会影响简历表达的边界。";
-  return "下一轮，我们只验证一个关键判断。";
+  return "生成简历前的最后确认";
 }
 
 function mirrorEyebrow(type, title) {
@@ -1346,6 +1423,16 @@ function MirrorCard({ type, mirror, onFeedback, title = "" }) {
   const [detail, setDetail] = useState("");
   const [selectedCorrection, setSelectedCorrection] = useState("");
   const correctionOptions = feedbackOptionsFor(type, mirror);
+  const sections = asArray(mirror?.sections).filter((item) => item?.title || item?.content);
+  const assetSection = sections[0] || {
+    title: "正在叠加到职业资产库的认知",
+    content: mirror?.workPattern || mirror?.tension || "这一轮已经留下了可以进入职业资产库的方向、偏好或能力线索。"
+  };
+  const boundarySection = sections[1] || {
+    title: "需要谨慎处理的边界",
+    content: mirror?.evidenceBoundary || "证据不足、角色边界和指标口径还需要谨慎处理，不能把待验证假设直接写成确定优势。"
+  };
+  const keywords = dedupeList(splitKeywords(mirror?.userKeywords), 8);
   const saveFeedback = (choice, extra = "") => {
     setFeedback(choice);
     onFeedback?.({ type, choice, detail: extra });
@@ -1355,19 +1442,26 @@ function MirrorCard({ type, mirror, onFeedback, title = "" }) {
       <article className="mirror-card">
         <p className="eyebrow">{mirrorEyebrow(type, title)}</p>
         <h2>{mirrorHeading(type, mirror)}</h2>
-        <p className="mirror-hit">{mirror.hit}</p>
         <div className="mirror-sections">
-          <section>
-            <span>这里有一个拉扯</span>
-            <p>{mirror.tension}</p>
+          <section className="mirror-primary-block">
+            <span>我眼中的你</span>
+            <p className="mirror-hit">{mirror.hit}</p>
           </section>
           <section>
-            <span>一个正在浮现的工作模式</span>
-            <p>{mirror.workPattern}</p>
+            <span>{assetSection.title || "正在叠加到职业资产库的认知"}</span>
+            <p>{assetSection.content}</p>
           </section>
           <section>
-            <span>我先不急着下结论，因为</span>
-            <p>{mirror.evidenceBoundary}</p>
+            <span>{boundarySection.title || "需要谨慎处理的边界"}</span>
+            <p>{boundarySection.content}</p>
+          </section>
+          <section className="mirror-keyword-block">
+            <span>用户关键词</span>
+            <div className="mirror-keywords">
+              {(keywords.length ? keywords : ["职业方向", "项目证据", "表达边界"]).map((item) => (
+                <em key={item}>{item}</em>
+              ))}
+            </div>
           </section>
         </div>
         <div className="mirror-feedback">
@@ -1420,10 +1514,6 @@ function MirrorCard({ type, mirror, onFeedback, title = "" }) {
           </div>
         )}
       </article>
-      <div className="next-signal">
-        <p>{nextSignalLead(type)}</p>
-        <strong>{mirror.nextValidation}</strong>
-      </div>
     </>
   );
 }
@@ -1463,7 +1553,6 @@ function InsightPage({
     return <GuardPage title="还没有简历策略" text="先生成简历策略，再处理简历里的模糊点和公开边界。" target="resume" />;
   }
   const mirror = buildMirror(type, careerResult, projectResult, strategyResult);
-  const advice = buildAdvice(type, careerResult, projectResult, strategyResult);
   if (type === "direction") {
     const resumeOnly = !directionInterviewStarted;
     const narratives = asArray(careerResult?.narratives).slice(0, 3);
@@ -1488,7 +1577,6 @@ function InsightPage({
               title="这一轮留下来的线索"
               onFeedback={onMirrorFeedback}
             />
-            <AdviceCard advice={advice} />
           </>
         )}
         <div className="insight-grid">
@@ -1530,7 +1618,6 @@ function InsightPage({
           mirror={mirror}
           onFeedback={onMirrorFeedback}
         />
-        <AdviceCard advice={advice} />
         <div className="project-list">
           {(projects.length ? projects : projectCards).slice(0, 4).map((item, index) => (
             <article className="project-row" key={`${item.name || item.id || index}`}>
@@ -1566,7 +1653,6 @@ function InsightPage({
         mirror={mirror}
         onFeedback={onMirrorFeedback}
       />
-      <AdviceCard advice={advice} />
       <AssetNotesCard interview={interview} />
       <div className="deliverable-grid">
         <article className="hero-card">
