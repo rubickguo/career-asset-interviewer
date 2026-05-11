@@ -1123,6 +1123,28 @@ function resumeHasEnoughEvidenceForSkippingInterview(context, resumeMeta) {
   return charCount >= 1800 && structureSignals >= 1 && actionSignals >= 6 && metricSignals >= 2;
 }
 
+function scoreMeetsThreshold(result) {
+  const score = result?.score || {};
+  const total = Number(score.total);
+  const threshold = Number(score.threshold);
+  if (!Number.isFinite(total) || !Number.isFinite(threshold)) return false;
+  const hasBlockingDimension = asArray(score.dimensions).some((dimension) => {
+    if (dimension?.blocking !== true) return false;
+    const dimensionScore = Number(dimension.score);
+    const dimensionMax = Number(dimension.max);
+    if (!Number.isFinite(dimensionScore) || !Number.isFinite(dimensionMax)) return true;
+    return dimensionScore < dimensionMax;
+  });
+  return total >= threshold && !hasBlockingDimension;
+}
+
+function scoreIsBelowThreshold(result) {
+  const score = result?.score || {};
+  const total = Number(score.total);
+  const threshold = Number(score.threshold);
+  return Number.isFinite(total) && Number.isFinite(threshold) && total < threshold;
+}
+
 function projectEvidenceLooksSufficient(result) {
   const projects = [
     ...asArray(result?.priorityProjects),
@@ -1151,6 +1173,7 @@ function projectEvidenceNeedsUser(result) {
 
 function stepNeedsUser(results, stepId, intake = null) {
   const result = results?.[stepId]?.result;
+  if (scoreMeetsThreshold(result)) return false;
   if (!result?.readiness?.shouldAskUser) return false;
   const round = roundByStepId[stepId];
   if (round && intake) {
@@ -1165,6 +1188,7 @@ function resultRecommended(results, stepId, actions) {
 }
 
 function resumeStrategyHasBlockingGaps(result) {
+  if (scoreMeetsThreshold(result) && hasPublicResumeSource(result)) return false;
   return Boolean(
     result?.readiness?.shouldAskUser ||
       asArray(result?.questions).length ||
@@ -1177,13 +1201,13 @@ function fallbackDirectionQuestions() {
   return [
     {
       id: "current_track_or_change",
-      question: "先不急着说要不要换方向。你更倾向于继续沿着现在的职业轨道找机会，还是已经明确想换到另一个岗位？如果想换，吸引你的是什么，不想回去的又是什么？",
-      why: "先区分“继续当前职业但换环境”和“真正转向”，避免把短期焦虑误判成职业方向问题。"
+      question: "你目前还打算继续求职这个方向吗？如果想调整方向，想靠近什么；如果仍然继续，最想换掉当前工作的哪一部分？",
+      why: "先确认真实求职方向，再判断后面应该保留哪些经历、弱化哪些叙事。"
     },
     {
-      id: "work_mode_preference",
-      question: "回想你做得比较有劲的一段工作：当时你是在执行明确任务，还是在定义问题、搭流程、定规则、做工具或影响别人行动？哪一种更像你想长期靠近的工作方式？",
-      why: "这能帮助判断你的核心偏好是执行交付、问题定义、机制建设、技术实现还是团队推进。"
+      id: "wants_strengths_weaknesses",
+      question: "把过去的工作放在一起看：你最想继续做的是什么，你明显擅长什么；又有哪些事虽然能做，但不想长期做或做起来很消耗？",
+      why: "第一轮要把想做、擅长、不擅长、不想做分开，避免只按简历上的岗位标签判断你。"
     },
     {
       id: "evidence_to_verify",
@@ -1213,6 +1237,33 @@ function fallbackProjectQuestions() {
   ];
 }
 
+function fallbackResumeGapQuestions() {
+  return [
+    {
+      id: "resume_metric_evidence",
+      question: "如果只补一类最能写进简历的数据，你能补哪一种：效率提升、准确率变化、覆盖规模、采用人数、内容/交易规模、人工成本下降，还是只能先写过程指标？",
+      why: "第三轮只追能改变简历 bullet 说服力的指标口径；没有结果指标时，也要找到最可信的过程指标。",
+      relatedAssetField: "resumeStories",
+      blocksWhichDecision: "简历 bullet 的强弱和指标写法",
+      expectedAnswerType: "metric",
+      evidenceAnchor: "简历关键项目",
+      targetScoreDimension: "数据指标说服力",
+      expectedScoreGain: 12
+    },
+    {
+      id: "resume_public_link_asset",
+      question: "有没有可以放进简历或作品区的公开材料：作品集、GitHub、Demo、文章、产品页或可脱敏项目链接？没有也可以直接说没有。",
+      why: "公开链接不是必须，但如果存在，会明显提高作品和项目的可信度；如果没有，就不强行包装。",
+      relatedAssetField: "resumeStories",
+      blocksWhichDecision: "个人作品和公开边界",
+      expectedAnswerType: "boundary",
+      evidenceAnchor: "作品或可公开材料",
+      targetScoreDimension: "作品/链接资产",
+      expectedScoreGain: 8
+    }
+  ];
+}
+
 const questionDefaultsByStep = {
   career_direction: {
     prefix: "direction_question",
@@ -1230,7 +1281,7 @@ const questionDefaultsByStep = {
     prefix: "resume_gap_question",
     relatedAssetField: "resumeStories",
     blocksWhichDecision: "是否允许生成正式简历预览",
-    expectedAnswerType: "boundary"
+    expectedAnswerType: "metric"
   }
 };
 
@@ -1245,13 +1296,13 @@ const interviewRoundConfig = {
     stepId: "project_mining",
     askAction: "ask_project_questions",
     nextActionWhenComplete: "run_resume_strategy",
-    maxQuestions: 9
+    maxQuestions: 4
   },
   gaps: {
     stepId: "resume_strategy",
     askAction: "ask_resume_gap_questions",
     nextActionWhenComplete: "render_resume",
-    maxQuestions: 3
+    maxQuestions: 2
   }
 };
 
@@ -1285,11 +1336,28 @@ function normalizeQuestionForStep(stepId, item, index) {
   };
 }
 
+function questionLooksLikeDocumentProofRequest(question) {
+  const text = String(question?.question || question || "");
+  return /需求文档|设计稿|截图|证明.*独立负责|证明材料|审核界面|结果展示.*设计|PRD.*证明/i.test(text);
+}
+
+function questionLooksUsefulForResumeStrategy(question) {
+  const text = String(question?.question || question || "");
+  if (questionLooksLikeDocumentProofRequest(text)) return false;
+  return /指标|数据|效率|准确率|覆盖|规模|人数|采用|反馈|留存|转化|成本|流水|收入|GitHub|作品集|Demo|文章|产品页|链接|公开|脱敏/i.test(text);
+}
+
+function sanitizeQuestionsForStep(stepId, questions) {
+  const normalized = asArray(questions);
+  if (stepId !== "resume_strategy") return normalized;
+  return normalized.filter(questionLooksUsefulForResumeStrategy);
+}
+
 function normalizeQuestionsForStep(stepId, questions) {
-  return asArray(questions)
+  return sanitizeQuestionsForStep(stepId, questions)
     .map((item, index) => normalizeQuestionForStep(stepId, item, index))
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, interviewRoundConfig[roundByStepId[stepId]]?.maxQuestions || 3);
 }
 
 function parseAnswerItems(raw) {
@@ -1331,6 +1399,13 @@ function applyRoundQuestionLimit(stepId, result, context) {
   const config = interviewRoundConfig[round];
   if (!round || !config) return result;
   const next = { ...(result || {}) };
+  if (scoreMeetsThreshold(next)) {
+    return applyDeterministicReadiness(next, {
+      action: config.nextActionWhenComplete,
+      shouldAskUser: false,
+      reason: `本轮评分已达到 ${next.score?.threshold || "目标"}，不再追加问题。`
+    });
+  }
   const shouldAsk = next.readiness?.shouldAskUser || recommendedActionFromResult(next) === config.askAction || asArray(next.questions).length > 0;
   if (!shouldAsk) return next;
   const answeredCount = answeredItemsForRound(context?.careerAnswersJson, round).length;
@@ -1395,7 +1470,7 @@ function forceAsk(result, { action, reason, questions }) {
     reason
   };
   const existingQuestions = asArray(next.questions).filter((item) => item?.question);
-  next.questions = existingQuestions.length ? existingQuestions.slice(0, 3) : questions;
+  next.questions = existingQuestions.length ? existingQuestions : questions;
   return next;
 }
 
@@ -1485,6 +1560,14 @@ function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
     });
   }
 
+  if (stepId === "project_mining" && scoreMeetsThreshold(next)) {
+    return applyDeterministicReadiness(next, {
+      action: "run_resume_strategy",
+      shouldAskUser: false,
+      reason: `第二轮项目证据评分已达到 ${next.score?.threshold || "目标"}，不再追加项目问题。`
+    });
+  }
+
   if (stepId === "project_mining" && (!projectEvidenceLooksSufficient(next) || projectEvidenceNeedsUser(next))) {
     next = forceAsk(next, {
       action: "ask_project_questions",
@@ -1512,6 +1595,9 @@ function normalizeWorkflowResult(stepId, result, context, resumeMeta) {
         ? next.readiness?.reason || "简历策略还有模糊点、公开边界或可渲染简历内容需要确认。"
         : next.readiness?.reason || "简历策略和可展示内容已足够进入预览。"
     });
+    if (hasBlockingGaps && next.questions.length === 0 && (scoreIsBelowThreshold(next) || !hasPublicResumeSource(next))) {
+      next.questions = normalizeQuestionsForStep(stepId, fallbackResumeGapQuestions());
+    }
     return applyRoundQuestionLimit(stepId, next, context);
   }
 
@@ -1604,10 +1690,17 @@ function buildInterviewRoundState(round, llmResults, intake) {
     });
   }
 
-  const shouldShowOpenQuestions = recommendedActionFromResult(result) === config.askAction || result?.readiness?.shouldAskUser === true;
+  const shouldShowOpenQuestions = !scoreMeetsThreshold(result) && (
+    recommendedActionFromResult(result) === config.askAction ||
+    result?.readiness?.shouldAskUser === true
+  );
   const remaining = Math.max(0, config.maxQuestions - merged.length);
   if (shouldShowOpenQuestions && remaining > 0) {
-    for (const item of normalizeQuestionsForStep(config.stepId, result.questions).slice(0, remaining)) {
+    let sourceQuestions = normalizeQuestionsForStep(config.stepId, result.questions);
+    if (config.stepId === "resume_strategy" && sourceQuestions.length === 0 && (scoreIsBelowThreshold(result) || !hasPublicResumeSource(result))) {
+      sourceQuestions = normalizeQuestionsForStep(config.stepId, fallbackResumeGapQuestions());
+    }
+    for (const item of sourceQuestions.slice(0, remaining)) {
       if (seen.has(item.id)) continue;
       seen.add(item.id);
       const saved = answerById.get(item.id);

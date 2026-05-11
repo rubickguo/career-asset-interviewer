@@ -149,8 +149,15 @@ async function main() {
   assert.match(workflowSource, /正式投递简历可预览内容/);
   assert.match(workflowSource, /个人简介\\|工作经历\\|项目经历\\|核心能力\\|个人作品\\|教育经历/);
   assert.match(workflowSource, /采访 -> 确认 -> 总结判断/);
-  assert.match(workflowSource, /每轮最多提出 3 个核心问题/);
+  assert.match(workflowSource, /第一轮最多 3 题，第二轮最多 4 题，第三轮最多 2 题/);
   assert.match(workflowSource, /问答不是必经流程/);
+  assert.match(workflowSource, /全流程最多 9 个用户问题/);
+  assert.match(workflowSource, /"score"/);
+  assert.match(workflowSource, /你目前还打算继续求职这个方向吗/);
+  assert.match(workflowSource, /第三轮禁止默认索要需求文档、设计稿、截图或证明材料/);
+  assert.match(workflowSource, /作品集、GitHub、Demo、文章、产品页/);
+  assert.match(workflowSource, /answerQuality/);
+  assert.match(workflowSource, /expectedScoreGain/);
   assert.match(workflowSource, /recommendedNextAction/);
   assert.match(workflowSource, /adviceCard/);
   assert.match(workflowSource, /resumeDiagnosisCard/);
@@ -177,7 +184,10 @@ async function main() {
   assert.match(serverSource, /buildSessionContext\(sessionId, authSession\)/);
   assert.match(serverSource, /AUTH_REQUIRE_LOGIN/);
   assert.match(serverSource, /buildInterviewState/);
-  assert.match(serverSource, /maxQuestions: 9/);
+  assert.match(serverSource, /maxQuestions: 4/);
+  assert.match(serverSource, /maxQuestions: 2/);
+  assert.match(serverSource, /scoreMeetsThreshold/);
+  assert.match(serverSource, /sanitizeQuestionsForStep/);
 
   const landing = await request("/");
   assert.match(landing.text, /嗨找吧 HiJob/);
@@ -349,7 +359,8 @@ async function main() {
   });
   const interviewState = await request("/api/state");
   assert.equal(interviewState.data.interview.currentRoute, "interview/projects");
-  assert.equal(interviewState.data.interview.rounds.projects.maxQuestions, 9);
+  assert.equal(interviewState.data.interview.rounds.projects.maxQuestions, 4);
+  assert.equal(interviewState.data.interview.rounds.gaps.maxQuestions, 2);
   assert.equal(interviewState.data.interview.rounds.projects.answeredCount, 1);
   assert.equal(interviewState.data.interview.rounds.projects.questions.length, 3);
   assert.equal(interviewState.data.interview.rounds.projects.questions[0].locked, true);
@@ -399,6 +410,102 @@ async function main() {
     true,
     "answered duplicate project questions should not trap the user in round two"
   );
+
+  await writeJson(path.join(workspaceDir, "llm-results/project_mining.json"), {
+    stepId: "project_mining",
+    status: "done",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    model: "smoke-fixture",
+    result: {
+      headline: "项目证据分已达标。",
+      score: {
+        total: 84,
+        threshold: 80,
+        shouldAskMore: false,
+        dimensions: [
+          { name: "指标与结果", score: 22, max: 25, reason: "已有过程指标和规模指标", blocking: false }
+        ]
+      },
+      readiness: {
+        informationSufficient: false,
+        confidence: "medium",
+        shouldAskUser: true,
+        recommendedNextAction: "ask_project_questions",
+        reason: "模型仍然返回了追问，但分数已经达标"
+      },
+      questions: [
+        {
+          id: "unneeded_metric_question",
+          question: "权限系统是否还有更多指标可以补？",
+          why: "分数达标后不应继续阻塞",
+          relatedAssetField: "projects",
+          blocksWhichDecision: "项目证据是否足够",
+          expectedAnswerType: "metric",
+          evidenceAnchor: "权限系统重构",
+          isRequired: true
+        }
+      ],
+      projectCards: [
+        {
+          name: "权限系统重构",
+          resumePotential: "重构企业权限模型，支持自定义角色和细粒度鉴权。"
+        }
+      ]
+    }
+  });
+
+  const highScoreProjectState = await request("/api/state");
+  assert.equal(highScoreProjectState.data.interview.rounds.projects.openCount, 0);
+  assert.equal(
+    highScoreProjectState.data.orchestrator.actions.resume_strategy.allowed,
+    true,
+    "project score above threshold should skip extra questions even if stale questions exist"
+  );
+
+  await writeJson(path.join(workspaceDir, "llm-results/resume_strategy.json"), {
+    stepId: "resume_strategy",
+    status: "done",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    model: "smoke-fixture",
+    result: {
+      headline: "简历说服力还差指标口径。",
+      score: {
+        total: 72,
+        threshold: 85,
+        shouldAskMore: true,
+        dimensions: [
+          { name: "数据指标说服力", score: 8, max: 25, reason: "缺少审核效率或覆盖规模口径", blocking: true }
+        ]
+      },
+      readiness: {
+        informationSufficient: false,
+        confidence: "low",
+        shouldAskUser: true,
+        recommendedNextAction: "ask_resume_gap_questions",
+        reason: "需要补指标"
+      },
+      questions: [
+        {
+          id: "bad_doc_question",
+          question: "沐瞳的AI审核系统，你是否有需求文档或设计稿可以证明你独立负责产品模块？审核界面或结果展示是你设计的吗？",
+          why: "不应该索要文档证明",
+          relatedAssetField: "resumeStories",
+          blocksWhichDecision: "是否允许生成正式简历预览",
+          expectedAnswerType: "boundary",
+          evidenceAnchor: "沐瞳 AI 审核系统",
+          isRequired: true
+        }
+      ],
+      pendingQuestions: []
+    }
+  });
+
+  const sanitizedGapState = await request("/api/state");
+  const gapQuestions = sanitizedGapState.data.interview.rounds.gaps.questions.map((item) => item.question).join("\n");
+  assert.match(gapQuestions, /指标|效率|准确率|覆盖|复核|GitHub|作品集|Demo|链接/);
+  assertNotIncludes(gapQuestions, ["需求文档", "设计稿", "证明你独立负责", "审核界面"], "third-round questions");
 
   const resumeStrategyPayload = {
     stepId: "resume_strategy",
