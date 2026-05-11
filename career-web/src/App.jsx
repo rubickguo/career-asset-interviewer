@@ -1073,7 +1073,6 @@ function InterviewPage({ round, questions, answers, setAnswers, busy, onSave, re
         <p className="eyebrow">{round.eyebrow}</p>
         <h1>{round.title}</h1>
         <p>{round.description}</p>
-        {readOnly && <p className="readonly-note">这一轮已经提交。你可以回看问题和答案，但这里不会再修改，避免重复消耗模型和让问题漂移。</p>}
         {!readOnly && questions.some((item) => item.locked) && <p className="readonly-note">前面答过的问题会保留为只读。下面只补这轮还缺的几个关键事实。</p>}
         <div className="round-progress">
           {Array.from({ length: round.total }).map((_, index) => (
