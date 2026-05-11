@@ -1905,6 +1905,10 @@ async function runResumeRender(context = null) {
   const resumeMeta = (await readJsonFile(path.join(dirs.uploads, "resume-meta.json"), {})) || {};
   const resumeText = await readText(path.join(dirs.uploads, "resume-extracted.txt"));
   const html = buildResumeHtml({ resumeStrategy, careerDirection, projectMining, resumeMeta, resumeText });
+  return writeResumeHtmlAndPdf(html);
+}
+
+async function writeResumeHtmlAndPdf(html) {
   const findings = inspectResumeHtml(html);
   const resumeHtmlPath = path.join(dirs.exports, "resume.html");
   const resumePdfPath = path.join(dirs.exports, "resume.pdf");
@@ -2272,6 +2276,29 @@ app.get("/exports/:file", async (req, res, next) => {
       throw new Error("Unsupported export file.");
     }
     res.sendFile(path.join(dirs.exports, file));
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.get("/api/resume-html", async (_req, res, next) => {
+  try {
+    await ensureWorkspace();
+    const html = await readText(path.join(dirs.exports, "resume.html"));
+    if (!html.trim()) throw new Error("还没有可编辑的简历预览，请先生成 HTML 预览。");
+    res.json({ ok: true, html });
+  } catch (error) {
+    next(error);
+  }
+});
+
+app.post("/api/resume-html", async (req, res, next) => {
+  try {
+    await ensureWorkspace();
+    const html = String(req.body?.html || "");
+    if (!html.includes("<html") || !html.includes("</html>")) throw new Error("保存失败：不是完整 HTML。");
+    const result = await writeResumeHtmlAndPdf(html);
+    res.json({ ok: true, result, artifacts: await artifactState() });
   } catch (error) {
     next(error);
   }

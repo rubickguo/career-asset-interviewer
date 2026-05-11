@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -460,7 +460,7 @@ function currentStepMeta(view, id = "") {
     return { index: Math.min(2 + round.index, 5), total: 5, label: round.eyebrow };
   }
   if (view === "projects" || id === "projects") return { index: 4, total: 5, label: "项目证据" };
-  if (view === "resume" || id === "gaps") return { index: 5, total: 5, label: "简历预览" };
+  if (view === "resume" || view === "resume-edit" || id === "gaps") return { index: 5, total: 5, label: "简历预览" };
   if (view === "waiting") {
     const map = {
       career_direction: { index: 2, total: 5, label: "理解方向" },
@@ -1839,9 +1839,9 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
     : blocksRender
       ? () => goTo("interview", "gaps")
       : previewReady
-        ? () => window.open(appUrl(artifacts.resumeHtml.url), "_blank", "noreferrer")
+        ? () => goTo("resume-edit")
         : onRender;
-  const primaryLabel = !strategy ? "生成简历策略" : blocksRender ? "补充关键证据" : previewReady ? "打开 HTML 预览" : "生成预览和 PDF";
+  const primaryLabel = !strategy ? "生成简历策略" : blocksRender ? "补充关键证据" : previewReady ? "编辑预览文案" : "生成预览和 PDF";
   return (
     <section className="solo-page resume-workbench">
       <div className="page-head">
@@ -1871,6 +1871,7 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
             {primaryLabel}
           </PrimaryButton>
           <div className="resume-secondary-actions">
+            {previewReady && <a href={appUrl(artifacts.resumeHtml.url)} target="_blank" rel="noreferrer">打开 HTML</a>}
             {previewReady && artifacts?.resumePdf && <a href={appUrl(artifacts.resumePdf.url)} target="_blank" rel="noreferrer">打开 PDF</a>}
             {previewReady && artifacts?.renderReport && <a href={appUrl(artifacts.renderReport.url)} target="_blank" rel="noreferrer">检查报告</a>}
             {strategy && <button type="button" onClick={previewReady || !blocksRender ? onRender : onStrategy} disabled={busy}>{previewReady ? "重新生成预览" : "重新分析策略"}</button>}
@@ -1879,6 +1880,85 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
       </div>
       <div className="step-actions end">
         <GhostButton onClick={() => goTo("insight", "projects")}>查看项目证据</GhostButton>
+      </div>
+    </section>
+  );
+}
+
+function ResumeEditorPage({ busy, onSave }) {
+  const iframeRef = useRef(null);
+  const [html, setHtml] = useState("");
+  const [localStatus, setLocalStatus] = useState("正在打开预览...");
+
+  useEffect(() => {
+    let cancelled = false;
+    api("/resume-html")
+      .then((result) => {
+        if (cancelled) return;
+        setHtml(result.html || "");
+        setLocalStatus("可以直接在下方简历里修改文字。保存后会重新生成 PDF。");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setLocalStatus(error.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function enableEditing() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.body) return;
+    doc.body.contentEditable = "true";
+    doc.body.spellcheck = false;
+    doc.body.dataset.resumeEditor = "true";
+  }
+
+  function editedHtml() {
+    const doc = iframeRef.current?.contentDocument;
+    if (!doc?.documentElement) return html;
+    const clone = doc.documentElement.cloneNode(true);
+    const body = clone.querySelector("body");
+    if (body) {
+      body.removeAttribute("contenteditable");
+      body.removeAttribute("spellcheck");
+      body.removeAttribute("data-resume-editor");
+    }
+    return `<!doctype html>\n${clone.outerHTML}`;
+  }
+
+  return (
+    <section className="solo-page resume-editor-page">
+      <div className="page-head compact-head">
+        <p className="eyebrow">简历预览</p>
+        <h1>先把文字改到能投递。</h1>
+        <p>这里不是最终导出页。你可以直接调整措辞、删减不想展示的句子，保存后系统会重新生成 PDF。</p>
+      </div>
+      <div className="resume-editor-toolbar">
+        <span>{localStatus}</span>
+        <div>
+          <GhostButton onClick={() => goTo("resume")} disabled={busy}>返回简历页</GhostButton>
+          <PrimaryButton icon={busy ? Loader2 : Save} onClick={() => onSave(editedHtml())} disabled={busy || !html}>
+            保存并生成 PDF
+          </PrimaryButton>
+        </div>
+      </div>
+      <div className="resume-editor-frame-wrap">
+        {html ? (
+          <iframe
+            ref={iframeRef}
+            title="可编辑简历预览"
+            className="resume-editor-frame"
+            srcDoc={html}
+            onLoad={enableEditing}
+          />
+        ) : (
+          <div className="resume-editor-empty">
+            <Loader2 className="spin" size={24} />
+            <span>{localStatus}</span>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -2362,6 +2442,24 @@ function App() {
     }
   }
 
+  async function saveEditedResumeHtml(html) {
+    setBusy(true);
+    setStatus("正在保存预览，并重新生成 PDF...");
+    try {
+      await api("/resume-html", {
+        method: "POST",
+        body: JSON.stringify({ html })
+      });
+      await loadState();
+      setStatus("预览已保存，PDF 已重新生成。");
+      goTo("resume");
+    } catch (error) {
+      setStatus(error.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveMirrorFeedback(payload) {
     try {
       await api("/intake/mirror-feedback", {
@@ -2471,6 +2569,12 @@ function App() {
           interview={state?.interview}
         />
       )}
+      {route.view === "resume-edit" && (
+        <ResumeEditorPage
+          busy={busy}
+          onSave={saveEditedResumeHtml}
+        />
+      )}
       {route.view === "jd" && (
         <JdPage
           jdInput={jdInput}
@@ -2499,7 +2603,7 @@ function App() {
       )}
       {route.view === "waiting" && <WaitingPage stepId={route.id} busy={busy} onRefresh={loadState} />}
       {route.view === "dev" && <DevPage state={state} />}
-      {!["upload", "diagnosis", "interview", "projects", "project", "resume", "jd", "insight", "waiting", "dev", "login"].includes(route.view) && (
+      {!["upload", "diagnosis", "interview", "projects", "project", "resume", "resume-edit", "jd", "insight", "waiting", "dev", "login"].includes(route.view) && (
         <GuardPage title="页面不存在" text="回到首页重新开始。" target="landing" />
       )}
     </StepShell>

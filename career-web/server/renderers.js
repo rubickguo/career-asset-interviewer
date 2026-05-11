@@ -80,11 +80,14 @@ function looksLikeWorkTitle(line) {
 function extractOriginalWorkEntries(resumeText) {
   const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
   const start = lines.findIndex(isWorkSectionStart);
-  if (start < 0) return [];
   const sectionLines = [];
-  for (const line of lines.slice(start + 1)) {
-    if (isNextMajorSection(line)) break;
-    sectionLines.push(line);
+  if (start >= 0) {
+    for (const line of lines.slice(start + 1)) {
+      if (isNextMajorSection(line)) break;
+      sectionLines.push(line);
+    }
+  } else {
+    sectionLines.push(...lines.filter((line) => !isNextMajorSection(line)));
   }
   const entries = [];
   let current = null;

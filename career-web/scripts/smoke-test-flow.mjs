@@ -132,9 +132,14 @@ async function main() {
   assert.match(appSource, /strategyBlocksRender\(strategy, interview/);
   assert.match(appSource, /<ResumePage[\s\S]*interview=\{state\?\.interview\}/);
   assert.match(appSource, /预览已经生成/);
-  assert.match(appSource, /打开 HTML 预览/);
+  assert.match(appSource, /编辑预览文案/);
+  assert.match(appSource, /ResumeEditorPage/);
+  assert.match(appSource, /contentEditable = "true"/);
+  assert.match(appSource, /保存并生成 PDF/);
+  assert.match(appSource, /api\("\/resume-html"/);
   assert.match(appSource, /重新生成预览/);
   assert.match(appSource, /resume-workbench/);
+  assert.match(appSource, /resume-editor-frame/);
   assert.match(appSource, /resume-strategy-panel/);
   assert.match(appSource, /blocksResumeRender/);
   assert.match(appSource, /state\?\.artifacts\?\.resumeHtml \? goTo\("resume"\) : runStep\("resume_render", "resume", "resume"\)/);
@@ -170,6 +175,7 @@ async function main() {
   assert.match(rendererSource, /renderTagGrid/);
   assert.match(rendererSource, /tag-grid/);
   assert.match(rendererSource, /extractOriginalWorkEntries/);
+  assert.match(rendererSource, /sectionLines\.push\(\.\.\.lines\.filter/);
   assert.match(rendererSource, /mergeWorkEntries/);
   assert.match(rendererSource, /renderSectionTitle\("核心能力"\)/);
 
@@ -228,6 +234,8 @@ async function main() {
   assert.match(serverSource, /resumeStrategyHasBlockingGaps\(result, intake/);
   assert.match(serverSource, /gapsRoundComplete/);
   assert.match(serverSource, /runResumeRender\(context\)/);
+  assert.match(serverSource, /writeResumeHtmlAndPdf/);
+  assert.match(serverSource, /api\/resume-html/);
   assert.match(serverSource, /maxQuestions: 4/);
   assert.match(serverSource, /maxQuestions: 2/);
   assert.match(serverSource, /scoreMeetsThreshold/);
@@ -672,6 +680,18 @@ async function main() {
   assert.match(resumeHtml.text, /匿名公司/);
   assert.match(resumeHtml.text, /过往公司/);
   assertNotIncludes(resumeHtml.text, ["项目排序", "待确认问题", "版式注意", "项目证据补强", "风险：", "layoutNotes", "pendingQuestions"], "resume HTML");
+
+  const editableResume = await request("/api/resume-html");
+  assert.match(editableResume.data.html, /匿名公司/);
+  const editedHtml = editableResume.data.html.replace("后端/工具工程师，关注 AI 工具", "后端/工具工程师，已手动编辑，关注 AI 工具");
+  const saveEdited = await request("/api/resume-html", {
+    method: "POST",
+    body: JSON.stringify({ html: editedHtml })
+  });
+  assert.equal(saveEdited.data.result.stepId, "resume_render");
+  assert.ok(saveEdited.data.artifacts.resumeHtml?.url, "edited resume HTML URL should still exist");
+  const editedResumeHtml = await request(saveEdited.data.artifacts.resumeHtml.url);
+  assert.match(editedResumeHtml.text, /已手动编辑/);
 
   if (!keepSession && sessionId.startsWith("career-smoke-")) {
     await fs.rm(workspaceDir, { recursive: true, force: true });
