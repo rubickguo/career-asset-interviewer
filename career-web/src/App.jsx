@@ -263,6 +263,15 @@ function compactText(value, limit = 128) {
   return `${text.slice(0, limit).replace(/[，。；、\s]+$/g, "")}...`;
 }
 
+function sanitizeResumePendingQuestions(items) {
+  const blocked = /需求文档|设计稿|截图|证明.*独立负责|证明材料|审核界面|结果展示.*设计|PRD.*证明/i;
+  return asArray(items)
+    .map((item) => typeof item === "string" ? item : item?.question || item?.title || item?.text || "")
+    .map((item) => String(item || "").trim())
+    .filter((item) => item && !blocked.test(item))
+    .slice(0, 2);
+}
+
 function formatSize(size) {
   if (!size) return "";
   if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
@@ -1733,7 +1742,16 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender }) {
   const blocksRender = strategy ? strategyBlocksRender(strategy) : false;
-  const pendingQuestions = asArray(strategy?.pendingQuestions);
+  const pendingQuestions = sanitizeResumePendingQuestions(strategy?.pendingQuestions);
+  const strategySummary = strategy
+    ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 92)
+    : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
+  const strategyKeywords = strategy
+    ? asArray(strategy.keywordOrder).slice(0, 5).join(" / ") || "策略会决定顶部定位、项目顺序和关键词。"
+    : "会先判断顶部定位、项目取舍和关键词顺序。";
+  const gapSummary = pendingQuestions.length
+    ? pendingQuestions.join(" / ")
+    : "还需要补充能影响简历表达的数据指标、公开边界或 claim 强弱。";
   return (
     <section className="solo-page">
       <div className="page-head">
@@ -1742,26 +1760,30 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
         <p>这里先给出写作策略，再生成 HTML 预览和 PDF。版式问题要在预览后检查。</p>
       </div>
       <div className="deliverable-grid">
-        <article className="hero-card">
+        <article className="hero-card resume-deliverable-card">
           <FileText size={24} />
-          <h2>{strategy?.positioning || strategy?.headline || "还没有简历策略"}</h2>
-          <p>{strategy ? asArray(strategy.keywordOrder).slice(0, 5).join(" / ") || "已生成策略。" : "先基于职业画像和项目证据生成策略。"}</p>
+          <h2>{strategy ? "简历策略已生成" : "先生成简历策略"}</h2>
+          <p className="resume-card-lead">{strategySummary}</p>
+          <p className="resume-card-help">{strategyKeywords}</p>
           <PrimaryButton icon={busy ? Loader2 : Sparkles} onClick={onStrategy} disabled={busy}>
-            {strategy ? "重新生成策略" : "生成简历策略"}
+            {strategy ? "重新分析简历策略" : "分析简历策略"}
           </PrimaryButton>
         </article>
-        <article className="hero-card light">
+        <article className="hero-card light resume-deliverable-card">
           <Globe2 size={24} />
-          <h2>{artifacts?.resumeHtml ? "简历预览已生成" : blocksRender ? "先确认缺口" : "生成 HTML 预览"}</h2>
-          <p>
+          <h2>{artifacts?.resumeHtml ? "简历预览已生成" : blocksRender ? "还差几条简历证据" : "生成 HTML/PDF 预览"}</h2>
+          <p className="resume-card-lead">
             {blocksRender
-              ? pendingQuestions.slice(0, 2).join(" / ") || "还有角色边界、指标口径或公开边界需要确认。"
+              ? gapSummary
               : renderResult?.findings?.length
                 ? renderResult.findings.join(" / ")
-                : "生成后检查排版和导出文件。"}
+                : "生成后会检查版式、导出 HTML 和 PDF。"}
+          </p>
+          <p className="resume-card-help">
+            {blocksRender ? "这会进入第三轮，只补会影响简历 bullet、指标口径或公开边界的问题。" : "策略稳定后再生成预览，避免把未确认内容写进正式简历。"}
           </p>
           <PrimaryButton icon={busy ? Loader2 : FileText} onClick={blocksRender ? () => goTo("interview", "gaps") : onRender} disabled={busy || !strategy}>
-            {blocksRender ? "进入第三轮确认" : "生成预览和 PDF"}
+            {blocksRender ? "去补充简历证据" : "生成预览和 PDF"}
           </PrimaryButton>
         </article>
       </div>

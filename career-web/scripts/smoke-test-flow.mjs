@@ -117,6 +117,11 @@ async function main() {
   assert.match(appSource, /判断项目证据/);
   assert.match(appSource, /判断简历缺口/);
   assert.match(appSource, /保存并查看判断/);
+  assert.match(appSource, /重新分析简历策略/);
+  assert.match(appSource, /去补充简历证据/);
+  assert.match(appSource, /resume-deliverable-card/);
+  assert.match(appSource, /sanitizeResumePendingQuestions/);
+  assertNotIncludes(appSource, ["重新生成策略", "进入第三轮确认", "先确认缺口"], "resume page copy");
   assert.match(appSource, /查看上一轮/);
   assert.match(appSource, /查看本轮判断/);
   assert.match(appSource, /确定并查看本轮判断/);

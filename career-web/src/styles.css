@@ -1039,6 +1039,28 @@ textarea[readonly] {
   background: rgba(255, 255, 255, 0.72);
 }
 
+.resume-deliverable-card {
+  gap: 12px;
+}
+
+.resume-deliverable-card h2 {
+  font-size: clamp(28px, 3vw, 34px);
+  line-height: 1.18;
+}
+
+.resume-deliverable-card .resume-card-lead {
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 720;
+  line-height: 1.65;
+}
+
+.resume-deliverable-card .resume-card-help {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
 .stack-list,
 .question-stack,
 .project-list {
