@@ -122,9 +122,10 @@ async function main() {
   assert.match(appSource, /把能写进简历的证据补齐/);
   assert.match(appSource, /保存证据并更新策略/);
   assert.match(appSource, /resumeEvidenceQuestionsFromStrategy/);
-  assert.match(appSource, /resume-deliverable-card/);
+  assert.match(appSource, /resume-workbench/);
+  assert.match(appSource, /resume-strategy-panel/);
   assert.match(appSource, /sanitizeResumePendingQuestions/);
-  assertNotIncludes(appSource, ["重新生成策略", "进入第三轮确认", "先确认缺口", "把模糊的地方说清楚"], "resume page copy");
+  assertNotIncludes(appSource, ["重新生成策略", "进入第三轮确认", "先确认缺口", "把模糊的地方说清楚", "还差几条简历证据", "可选：分析 JD", "gapSummary"], "resume page copy");
   assert.match(appSource, /查看上一轮/);
   assert.match(appSource, /查看本轮判断/);
   assert.match(appSource, /确定并查看本轮判断/);

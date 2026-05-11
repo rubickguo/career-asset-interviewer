@@ -1039,26 +1039,138 @@ textarea[readonly] {
   background: rgba(255, 255, 255, 0.72);
 }
 
-.resume-deliverable-card {
-  gap: 12px;
+.resume-workbench .page-head {
+  max-width: 780px;
 }
 
-.resume-deliverable-card h2 {
-  font-size: clamp(28px, 3vw, 34px);
-  line-height: 1.18;
+.resume-strategy-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 18px;
+  align-items: stretch;
 }
 
-.resume-deliverable-card .resume-card-lead {
-  color: var(--ink);
-  font-size: 18px;
-  font-weight: 720;
-  line-height: 1.65;
+.resume-strategy-copy,
+.resume-action-panel {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 320px;
+  padding: clamp(26px, 4vw, 42px);
+  border: 1px solid rgba(255, 255, 255, 0.86);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 26px 70px rgba(24, 42, 64, 0.1);
+  overflow: hidden;
 }
 
-.resume-deliverable-card .resume-card-help {
+.resume-strategy-copy::after {
+  content: "";
+  position: absolute;
+  inset: auto -12% -36% 42%;
+  height: 220px;
+  background: linear-gradient(135deg, rgba(27, 143, 133, 0.12), rgba(63, 92, 206, 0.1), rgba(191, 84, 72, 0.1));
+  transform: rotate(-8deg);
+}
+
+.resume-strategy-copy > *,
+.resume-action-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.resume-icon-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  color: var(--teal);
+  background: rgba(30, 144, 134, 0.1);
+}
+
+.resume-strategy-copy h2,
+.resume-action-panel h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: clamp(30px, 4vw, 46px);
+  line-height: 1.08;
+}
+
+.resume-strategy-copy p:not(.eyebrow),
+.resume-action-panel p {
+  margin: 0;
   color: var(--muted);
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.resume-keyword-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.resume-keyword-row span,
+.resume-state {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--ink);
+  background: rgba(23, 32, 51, 0.06);
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.resume-state {
+  color: var(--teal);
+  background: rgba(30, 144, 134, 0.1);
+}
+
+.resume-state.needs-work {
+  color: #b8664c;
+  background: rgba(203, 97, 72, 0.12);
+}
+
+.resume-state.done {
+  color: #326bb1;
+  background: rgba(55, 106, 190, 0.12);
+}
+
+.resume-action-panel {
+  align-content: space-between;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(245, 251, 249, 0.9));
+}
+
+.resume-action-panel .primary-button {
+  width: 100%;
+  justify-content: center;
+}
+
+.text-action {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.text-action:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+
+.text-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .stack-list,
@@ -1361,6 +1473,7 @@ select:focus {
   .advice-card,
   .advice-columns,
   .deliverable-grid,
+  .resume-strategy-panel,
   .jd-layout {
     grid-template-columns: 1fr;
   }

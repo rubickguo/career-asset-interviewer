@@ -15,7 +15,6 @@ import {
   Save,
   Sparkles,
   Smartphone,
-  Target,
   Upload,
   UserRound
 } from "lucide-react";
@@ -1789,49 +1788,55 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender }) {
   const blocksRender = strategy ? strategyBlocksRender(strategy) : false;
-  const pendingQuestions = strategy ? resumeEvidenceQuestionsFromStrategy(strategy, { includeFallback: blocksRender }).map((item) => item.question) : [];
   const strategySummary = strategy
-    ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 92)
+    ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 118)
     : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
-  const strategyKeywords = strategy
-    ? asArray(strategy.keywordOrder).slice(0, 5).join(" / ") || "策略会决定顶部定位、项目顺序和关键词。"
-    : "会先判断顶部定位、项目取舍和关键词顺序。";
-  const gapSummary = pendingQuestions.length
-    ? pendingQuestions.join(" / ")
-    : "还需要补充能影响简历表达的数据指标、公开边界或 claim 强弱。";
+  const strategyKeywords = strategy ? asArray(strategy.keywordOrder).slice(0, 5) : [];
+  const stateLabel = !strategy ? "等待策略" : artifacts?.resumeHtml ? "预览已生成" : blocksRender ? "需要补证据" : "可以生成预览";
+  const stateCopy = !strategy
+    ? "先用前面的画像和项目证据生成写作策略，再进入预览。"
+    : artifacts?.resumeHtml
+      ? "HTML 和 PDF 已生成，可以打开文件检查版式。"
+      : blocksRender
+        ? "还有少量会影响可信度的证据需要确认。具体问题放到下一页处理，这里不展开。"
+        : renderResult?.findings?.length
+          ? renderResult.findings.join(" / ")
+          : "策略已经稳定，可以生成 HTML 预览和 PDF。";
+  const primaryAction = !strategy ? onStrategy : blocksRender ? () => goTo("interview", "gaps") : onRender;
+  const primaryLabel = !strategy ? "分析简历策略" : blocksRender ? "去补充简历证据" : artifacts?.resumeHtml ? "重新生成预览和 PDF" : "生成预览和 PDF";
   return (
-    <section className="solo-page">
+    <section className="solo-page resume-workbench">
       <div className="page-head">
         <p className="eyebrow">Step 05</p>
         <h1>生成简历策略和预览。</h1>
-        <p>这里先给出写作策略，再生成 HTML 预览和 PDF。版式问题要在预览后检查。</p>
+        <p>先确认主线和表达边界，再生成 HTML 预览和 PDF。版式问题留到预览后检查。</p>
       </div>
-      <div className="deliverable-grid">
-        <article className="hero-card resume-deliverable-card">
-          <FileText size={24} />
-          <h2>{strategy ? "简历策略已生成" : "先生成简历策略"}</h2>
-          <p className="resume-card-lead">{strategySummary}</p>
-          <p className="resume-card-help">{strategyKeywords}</p>
-          <PrimaryButton icon={busy ? Loader2 : Sparkles} onClick={onStrategy} disabled={busy}>
-            {strategy ? "重新分析简历策略" : "分析简历策略"}
-          </PrimaryButton>
+      <div className="resume-strategy-panel">
+        <article className="resume-strategy-copy">
+          <div className="resume-icon-badge"><FileText size={22} /></div>
+          <p className="eyebrow">简历策略</p>
+          <h2>{strategy ? "主线已经收束，先别急着导出。" : "先生成一版简历策略。"}</h2>
+          <p>{strategySummary}</p>
+          <div className="resume-keyword-row">
+            {(strategyKeywords.length ? strategyKeywords : ["定位", "项目顺序", "关键词"]).map((item) => (
+              <span key={item}>{item}</span>
+            ))}
+          </div>
         </article>
-        <article className="hero-card light resume-deliverable-card">
-          <Globe2 size={24} />
-          <h2>{artifacts?.resumeHtml ? "简历预览已生成" : blocksRender ? "还差几条简历证据" : "生成 HTML/PDF 预览"}</h2>
-          <p className="resume-card-lead">
-            {blocksRender
-              ? gapSummary
-              : renderResult?.findings?.length
-                ? renderResult.findings.join(" / ")
-                : "生成后会检查版式、导出 HTML 和 PDF。"}
-          </p>
-          <p className="resume-card-help">
-            {blocksRender ? "这一步只补简历证据：数据指标、作品链接、公开边界或 claim 强弱。补完会回到这里生成预览。" : "策略稳定后再生成预览，避免把未确认内容写进正式简历。"}
-          </p>
-          <PrimaryButton icon={busy ? Loader2 : FileText} onClick={blocksRender ? () => goTo("interview", "gaps") : onRender} disabled={busy || !strategy}>
-            {blocksRender ? "去补充简历证据" : "生成预览和 PDF"}
+        <article className="resume-action-panel">
+          <div>
+            <span className={`resume-state ${blocksRender ? "needs-work" : artifacts?.resumeHtml ? "done" : "ready"}`}>{stateLabel}</span>
+            <h2>{!strategy ? "下一步先建立写作策略" : blocksRender ? "先补完最后的可信证据" : "现在可以生成简历预览"}</h2>
+            <p>{stateCopy}</p>
+          </div>
+          <PrimaryButton icon={busy ? Loader2 : blocksRender ? FileText : Globe2} onClick={primaryAction} disabled={busy}>
+            {primaryLabel}
           </PrimaryButton>
+          {strategy && (
+            <button className="text-action" type="button" onClick={onStrategy} disabled={busy}>
+              重新分析简历策略
+            </button>
+          )}
         </article>
       </div>
       <div className="artifact-links">
@@ -1841,7 +1846,6 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
       </div>
       <div className="step-actions end">
         <GhostButton onClick={() => goTo("insight", "projects")}>查看项目证据</GhostButton>
-        <PrimaryButton icon={Target} onClick={() => goTo("jd")}>可选：分析 JD</PrimaryButton>
       </div>
     </section>
   );
