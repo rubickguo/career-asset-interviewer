@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.resolve(path.dirname(__filename), "..");
@@ -94,6 +94,7 @@ async function pollJobStatus(jobId) {
 }
 
 async function main() {
+  const { parseResumeStructure } = await import(pathToFileURL(path.join(rootDir, "server/resumeParser.js")).href);
   const appSource = await fs.readFile(path.join(rootDir, "src/App.jsx"), "utf8");
   assertNotIncludes(appSource, ["刚才这段里，最重要的可能是", "这些项目有没有能被别人相信的变化", "仙人指路", "避免重复消耗模型", "让问题漂移"], "App source");
   assert.match(appSource, /PRODUCT_NAME = "嗨找吧"/);
@@ -139,6 +140,9 @@ async function main() {
   assert.match(appSource, /api\("\/resume-html"/);
   assert.match(appSource, /重新生成预览/);
   assert.match(appSource, /resume-workbench/);
+  assert.match(appSource, /resume-coverage-note/);
+  assert.match(appSource, /有原始经历没有进入预览/);
+  assert.match(appSource, /有原始项目没有进入预览/);
   assert.match(appSource, /resume-editor-frame/);
   assert.match(appSource, /resume-strategy-panel/);
   assert.match(appSource, /blocksResumeRender/);
@@ -174,7 +178,7 @@ async function main() {
   assert.match(rendererSource, /summaryItemsFromPublicResume/);
   assertNotIncludes(rendererSource, ["renderTagGrid", "tag-grid"], "renderer source");
   assert.match(rendererSource, /extractOriginalWorkEntries/);
-  assert.match(rendererSource, /sectionLines\.push\(\.\.\.lines\.filter/);
+  assert.match(rendererSource, /parseResumeStructure\(resumeText\)\.workExperiences/);
   assert.match(rendererSource, /mergeWorkEntries/);
   assertNotIncludes(rendererSource, ['renderSectionTitle("核心能力")'], "renderer source");
   assert.match(rendererSource, /topKeywordItems/);
@@ -191,6 +195,8 @@ async function main() {
   assert.match(workflowSource, /顶部关键词最多 5 个，且必须控制在一行/);
   assert.match(workflowSource, /个人简介\\|工作经历\\|项目经历\\|个人作品\\|教育经历/);
   assert.match(workflowSource, /禁止删除过往工作经历/);
+  assert.match(workflowSource, /结构化解析出的原始经历和项目/);
+  assert.match(workflowSource, /publicResume\.projects 应覆盖原始简历中已经出现的重点项目/);
   assert.match(workflowSource, /采访 -> 确认 -> 总结判断/);
   assert.match(workflowSource, /第一轮最多 3 题，第二轮最多 4 题，第三轮最多 2 题/);
   assert.match(workflowSource, /问答不是必经流程/);
@@ -239,6 +245,8 @@ async function main() {
   assert.match(serverSource, /runResumeRender\(context\)/);
   assert.match(serverSource, /writeResumeHtmlAndPdf/);
   assert.match(serverSource, /api\/resume-html/);
+  assert.match(serverSource, /resume-structure\.json/);
+  assert.match(serverSource, /原始项目未进入预览或未明确合并/);
   assert.match(serverSource, /maxQuestions: 4/);
   assert.match(serverSource, /maxQuestions: 2/);
   assert.match(serverSource, /scoreMeetsThreshold/);
@@ -317,9 +325,19 @@ async function main() {
     "负责权限系统重构、内部自动化和线上稳定性治理。",
     "过往公司 ｜ 后端实习生 ｜ 2022 - 2023",
     "参与内部管理后台开发和数据脚本维护。",
+    "早期科技有限公司",
+    "产品助理",
+    "2016.07 - 2019.08",
+    "负责活动后台、数据看板和社区工具的需求整理。",
     "项目经历",
-    "权限系统重构"
+    "权限系统重构",
+    "重构企业权限模型，支持自定义角色和细粒度鉴权。"
   ].join("\n");
+
+  const parsedStructure = parseResumeStructure(resumeTextFixture);
+  assert.equal(parsedStructure.workExperiences.length, 3, "resume parser should identify every work experience");
+  assert.equal(parsedStructure.projects.length, 1, "resume parser should identify project sections");
+  assert.match(parsedStructure.workExperiences[2].title, /早期科技有限公司 ｜ 产品助理 ｜ 2016\.07 - 2019\.08/);
 
   await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
   await writeText(path.join(workspaceDir, "uploads/resume-extracted.txt"), resumeTextFixture);
@@ -670,6 +688,9 @@ async function main() {
   const report = await request(finalState.data.artifacts.renderReport.url);
   assert.equal(report.data.stepId, "resume_render");
   assert.ok(Array.isArray(report.data.findings), "report findings should be an array");
+  assert.ok(Array.isArray(report.data.sourceCoverage?.workExperiences), "render report should compare original work history");
+  assert.ok(Array.isArray(report.data.sourceCoverage?.projects), "render report should compare original projects");
+  assert.equal(report.data.sourceCoverage.workExperiences.filter((item) => item.status === "omitted").length, 0);
 
   const resumeHtml = await request(finalState.data.artifacts.resumeHtml.url);
   assert.match(resumeHtml.text, /class="page"/);
@@ -684,6 +705,7 @@ async function main() {
   assert.ok((resumeHtml.text.match(/class="chip"/g) || []).length <= 5, "top keyword chips should not exceed one line");
   assert.match(resumeHtml.text, /匿名公司/);
   assert.match(resumeHtml.text, /过往公司/);
+  assert.match(resumeHtml.text, /早期科技有限公司 ｜ 产品助理 ｜ 2016\.07 - 2019\.08/);
   assertNotIncludes(resumeHtml.text, ["项目排序", "待确认问题", "版式注意", "项目证据补强", "风险：", "layoutNotes", "pendingQuestions"], "resume HTML");
 
   const editableResume = await request("/api/resume-html");

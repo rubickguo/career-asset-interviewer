@@ -1820,6 +1820,8 @@ function ProjectEditorPage({ card, patchCard, busy, onSave }) {
 function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRender, interview }) {
   const blocksRender = strategy ? strategyBlocksRender(strategy, interview) : false;
   const previewReady = Boolean(artifacts?.resumeHtml);
+  const omittedWork = asArray(renderResult?.sourceCoverage?.workExperiences).filter((item) => item.status === "omitted");
+  const omittedProjects = asArray(renderResult?.sourceCoverage?.projects).filter((item) => item.status === "omitted");
   const strategySummary = strategy
     ? compactText(strategy.positioning || strategy.headline || "策略已生成。", 118)
     : "基于职业画像、项目证据和用户关键词，先生成一版简历写作策略。";
@@ -1876,6 +1878,18 @@ function ResumePage({ strategy, renderResult, artifacts, busy, onStrategy, onRen
             {previewReady && artifacts?.renderReport && <a href={appUrl(artifacts.renderReport.url)} target="_blank" rel="noreferrer">检查报告</a>}
             {strategy && <button type="button" onClick={previewReady || !blocksRender ? onRender : onStrategy} disabled={busy}>{previewReady ? "重新生成预览" : "重新分析策略"}</button>}
           </div>
+          {omittedWork.length > 0 && (
+            <div className="resume-coverage-note">
+              <strong>有原始经历没有进入预览</strong>
+              <p>{omittedWork.slice(0, 3).map((item) => item.title).join(" / ")}</p>
+            </div>
+          )}
+          {omittedProjects.length > 0 && (
+            <div className="resume-coverage-note">
+              <strong>有原始项目没有进入预览</strong>
+              <p>{omittedProjects.slice(0, 3).map((item) => item.title).join(" / ")}</p>
+            </div>
+          )}
         </article>
       </div>
       <div className="step-actions end">

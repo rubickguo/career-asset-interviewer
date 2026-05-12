@@ -180,7 +180,8 @@ const resumeOutputInstruction = `正式简历输出要求：
 - bullets 只能使用这些 section：个人简介、工作经历、项目经历、个人作品、教育经历。
 - 不要把“项目排序、待确认问题、版式注意、项目证据补强、风险、layoutNotes、pendingQuestions”等内部字段写进 bullets.text。
 - 必须额外输出 publicResume。publicResume 是渲染 HTML/PDF 的唯一优先来源，只能包含可展示字段，不能包含风险、待确认问题、内部排序、调试说明。
-- publicResume.experiences 必须保留原始简历里的全部工作经历条目（公司/岗位/时间）。可以压缩 bullet、调整重点和弱化不相关内容，但禁止删除过往工作经历，除非用户明确要求删除。
+- publicResume.experiences 必须逐条覆盖“结构化解析出的原始经历和项目”中的全部工作经历条目（公司/岗位/时间）。可以压缩 bullet、调整重点和弱化不相关内容，但禁止删除过往工作经历，除非用户明确要求删除。
+- publicResume.projects 应覆盖原始简历中已经出现的重点项目。可以合并相似项目、弱化噪音项目，但不能静默丢失；如果某项目不适合进入正式简历，必须在 pendingQuestions 或 layoutNotes 中说明“为什么不展示/如何合并”，由渲染检查报告提示用户。
 - 禁止输出单独的“核心能力”章节。核心能力、技能和关键词只允许进入顶部关键词条，不允许在下方重复展示。
 - 顶部关键词最多 5 个，且必须控制在一行。优先选择最能代表职业定位和证据方向的短词，不要把完整句子放进关键词。
 - publicResume.skills 只作为顶部关键词候选；不要把 publicResume.skills 写成简历 bullet，也不要复制到“个人简介”里造成重复。
@@ -193,6 +194,9 @@ const resumeOutputInstruction = `正式简历输出要求：
 function baseUserContext(context) {
   return `# 已解析简历
 ${context.resumeText || "未上传或未解析"}
+
+# 结构化解析出的原始经历和项目
+${context.resumeStructure || "未解析出结构化经历"}
 
 # 职业画像
 ${context.profile || ""}

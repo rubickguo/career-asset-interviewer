@@ -9,7 +9,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { callDeepSeek, getLlmConfig } from "./llmClient.js";
-import { parseResumeFile } from "./resumeParser.js";
+import { parseResumeFile, parseResumeStructure } from "./resumeParser.js";
 import { buildPersonalSiteHtml, buildResumeHtml, inspectResumeHtml } from "./renderers.js";
 import { buildMessages, parseJsonResult, resultToMarkdown, runnableSteps, workflowSteps } from "./workflow.js";
 
@@ -1840,8 +1840,11 @@ async function artifactState() {
 }
 
 async function buildWorkflowContext() {
+  const resumeText = await readText(path.join(dirs.uploads, "resume-extracted.txt"));
+  const resumeStructure = await readJsonFile(path.join(dirs.uploads, "resume-structure.json"), resumeText ? parseResumeStructure(resumeText) : null);
   return {
-    resumeText: await readText(path.join(dirs.uploads, "resume-extracted.txt")),
+    resumeText,
+    resumeStructure: resumeStructure ? JSON.stringify(resumeStructure, null, 2) : "",
     profile: await readText(path.join(dirs.assets, "profile.md")),
     directions: await readText(path.join(dirs.assets, "directions.md")),
     keywords: await readText(path.join(dirs.assets, "keywords.md")),
@@ -1905,11 +1908,55 @@ async function runResumeRender(context = null) {
   const resumeMeta = (await readJsonFile(path.join(dirs.uploads, "resume-meta.json"), {})) || {};
   const resumeText = await readText(path.join(dirs.uploads, "resume-extracted.txt"));
   const html = buildResumeHtml({ resumeStrategy, careerDirection, projectMining, resumeMeta, resumeText });
-  return writeResumeHtmlAndPdf(html);
+  const resumeStructure = await readJsonFile(path.join(dirs.uploads, "resume-structure.json"), parseResumeStructure(resumeText));
+  return writeResumeHtmlAndPdf(html, { resumeStructure });
 }
 
-async function writeResumeHtmlAndPdf(html) {
+function normalizeCoverageText(value) {
+  return String(value || "").replace(/\s+/g, "").toLowerCase();
+}
+
+function coverageForSourceResume(html, resumeStructure = {}) {
+  const normalizedHtml = normalizeCoverageText(html);
+  const workExperiences = (Array.isArray(resumeStructure.workExperiences) ? resumeStructure.workExperiences : []).map((item) => {
+    const title = String(item.title || "").trim();
+    const anchors = title.split(/｜|\||,|，/).map((part) => normalizeCoverageText(part)).filter((part) => part.length >= 4);
+    const titleKey = normalizeCoverageText(title);
+    const dateAnchor = anchors.find((part) => /(?:19|20)\d{2}/.test(part));
+    const primaryAnchor = anchors[0] || titleKey;
+    const included = normalizedHtml.includes(titleKey) || (
+      Boolean(primaryAnchor && normalizedHtml.includes(primaryAnchor)) &&
+      (!dateAnchor || normalizedHtml.includes(dateAnchor))
+    );
+    return { title, status: included ? "included" : "omitted" };
+  }).filter((item) => item.title);
+  const projects = (Array.isArray(resumeStructure.projects) ? resumeStructure.projects : []).map((item) => {
+    const title = String(item.title || "").trim();
+    const included = title ? normalizedHtml.includes(normalizeCoverageText(title)) : false;
+    return { title, status: included ? "included" : "omitted" };
+  }).filter((item) => item.title);
+  return { workExperiences, projects };
+}
+
+async function readCurrentResumeStructure() {
+  const saved = await readJsonFile(path.join(dirs.uploads, "resume-structure.json"), null);
+  if (saved?.workExperiences || saved?.projects) return saved;
+  const resumeText = await readText(path.join(dirs.uploads, "resume-extracted.txt"));
+  return resumeText ? parseResumeStructure(resumeText) : {};
+}
+
+async function writeResumeHtmlAndPdf(html, options = {}) {
   const findings = inspectResumeHtml(html);
+  const resumeStructure = options.resumeStructure || await readCurrentResumeStructure();
+  const sourceCoverage = coverageForSourceResume(html, resumeStructure);
+  const omittedWork = sourceCoverage.workExperiences.filter((item) => item.status === "omitted");
+  const omittedProjects = sourceCoverage.projects.filter((item) => item.status === "omitted");
+  if (omittedWork.length) {
+    findings.push(`原始工作经历未进入预览：${omittedWork.map((item) => item.title).join("；")}`);
+  }
+  if (omittedProjects.length) {
+    findings.push(`原始项目未进入预览或未明确合并：${omittedProjects.map((item) => item.title).join("；")}`);
+  }
   const resumeHtmlPath = path.join(dirs.exports, "resume.html");
   const resumePdfPath = path.join(dirs.exports, "resume.pdf");
   const blockingFindings = findings.filter((item) => /^Blocking /i.test(item));
@@ -1928,6 +1975,7 @@ async function writeResumeHtmlAndPdf(html) {
     status: allFindings.length ? "warning" : "done",
     updatedAt: new Date().toISOString(),
     artifacts: { resumeHtml: "exports/resume.html", resumePdf: pdfResult.ok ? "exports/resume.pdf" : null },
+    sourceCoverage,
     findings: allFindings
   };
   await fs.writeFile(path.join(dirs.exports, "render-report.json"), JSON.stringify(report, null, 2), "utf8");
@@ -2438,6 +2486,7 @@ app.get("/api/state", async (_req, res, next) => {
     } catch (error) {
       if (error.code !== "ENOENT") throw error;
     }
+    const resumeStructure = await readJsonFile(path.join(dirs.uploads, "resume-structure.json"), null);
     const intake = {
       careerDirectionAnswers: await readText(path.join(dirs.intake, "career-direction-answers.md")),
       careerDirectionAnswersJson: await readText(path.join(dirs.intake, "career-direction-answers.json")),
@@ -2462,6 +2511,7 @@ app.get("/api/state", async (_req, res, next) => {
       assets,
       assetStats,
       resumeMeta,
+      resumeStructure,
       resumeSource,
       intake,
       projectCards,
@@ -2551,9 +2601,11 @@ app.post("/api/intake/resume", async (req, res, next) => {
     }
 
     await resetFlowState();
+    const resumeStructure = parseResumeStructure(parsed.text);
     const storedPath = path.join(dirs.uploads, storedName);
     await fs.writeFile(storedPath, buffer);
     await fs.writeFile(path.join(dirs.uploads, "resume-extracted.txt"), parsed.text, "utf8");
+    await fs.writeFile(path.join(dirs.uploads, "resume-structure.json"), JSON.stringify(resumeStructure, null, 2), "utf8");
 
     const meta = {
       originalName: fileName,
@@ -2565,6 +2617,8 @@ app.post("/api/intake/resume", async (req, res, next) => {
       parser: parsed.parser,
       pageCount: parsed.pageCount,
       charCount: parsed.text.length,
+      workExperienceCount: resumeStructure.workExperiences.length,
+      projectCount: resumeStructure.projects.length,
       warnings: parsed.warnings
     };
     await fs.writeFile(path.join(dirs.uploads, "resume-meta.json"), JSON.stringify(meta, null, 2), "utf8");

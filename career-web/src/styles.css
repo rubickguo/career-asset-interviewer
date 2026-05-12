@@ -1098,12 +1098,23 @@ textarea[readonly] {
   line-height: 1.08;
 }
 
+.resume-action-panel h2 {
+  max-width: 11em;
+  font-size: clamp(26px, 2.8vw, 36px);
+  line-height: 1.12;
+}
+
 .resume-strategy-copy p:not(.eyebrow),
 .resume-action-panel p {
   margin: 0;
   color: var(--muted);
   font-size: 17px;
   line-height: 1.8;
+}
+
+.resume-action-panel > div:first-child {
+  display: grid;
+  gap: 12px;
 }
 
 .resume-keyword-row {
@@ -1143,13 +1154,15 @@ textarea[readonly] {
 }
 
 .resume-action-panel {
-  align-content: space-between;
+  align-content: start;
   background: linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(245, 251, 249, 0.9));
 }
 
 .resume-action-panel .primary-button {
   width: 100%;
   justify-content: center;
+  min-height: 54px;
+  font-size: 16px;
 }
 
 .resume-secondary-actions {
@@ -1185,6 +1198,26 @@ textarea[readonly] {
 .resume-secondary-actions button:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.resume-coverage-note {
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid rgba(203, 97, 72, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 247, 244, 0.76);
+}
+
+.resume-coverage-note strong {
+  color: #b8664c;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.resume-coverage-note p {
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .resume-editor-page {

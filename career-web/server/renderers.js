@@ -1,3 +1,5 @@
+import { parseResumeStructure } from "./resumeParser.js";
+
 function escapeHtml(value) {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -78,34 +80,10 @@ function looksLikeWorkTitle(line) {
 }
 
 function extractOriginalWorkEntries(resumeText) {
-  const lines = String(resumeText || "").split("\n").map((line) => line.trim()).filter(Boolean);
-  const start = lines.findIndex(isWorkSectionStart);
-  const sectionLines = [];
-  if (start >= 0) {
-    for (const line of lines.slice(start + 1)) {
-      if (isNextMajorSection(line)) break;
-      sectionLines.push(line);
-    }
-  } else {
-    sectionLines.push(...lines.filter((line) => !isNextMajorSection(line)));
-  }
-  const entries = [];
-  let current = null;
-  for (const line of sectionLines) {
-    if (looksLikeWorkTitle(line)) {
-      if (current) entries.push(current);
-      current = { title: cleanBulletText(line), bullets: [] };
-      continue;
-    }
-    if (current && /^[-•*·]|负责|参与|主导|推动|搭建|设计|优化|完成|支持/.test(line)) {
-      current.bullets.push(cleanBulletText(line).slice(0, 120));
-    }
-  }
-  if (current) entries.push(current);
-  return entries
+  return parseResumeStructure(resumeText).workExperiences
     .filter((item) => item.title)
-    .map((item) => ({ ...item, bullets: item.bullets.slice(0, 2) }))
-    .slice(0, 8);
+    .map((item) => ({ ...item, bullets: (item.bullets || []).slice(0, 2) }))
+    .slice(0, 12);
 }
 
 function mergeWorkEntries(generatedEntries, originalEntries) {
