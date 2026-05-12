@@ -177,10 +177,13 @@ const questionSchemaInstruction = `问题结构要求：
 
 const resumeOutputInstruction = `正式简历输出要求：
 - 这是给用户预览和导出 PDF 的简历内容，不是策略报告。
-- bullets 只能使用这些 section：个人简介、工作经历、项目经历、核心能力、个人作品、教育经历。
+- bullets 只能使用这些 section：个人简介、工作经历、项目经历、个人作品、教育经历。
 - 不要把“项目排序、待确认问题、版式注意、项目证据补强、风险、layoutNotes、pendingQuestions”等内部字段写进 bullets.text。
 - 必须额外输出 publicResume。publicResume 是渲染 HTML/PDF 的唯一优先来源，只能包含可展示字段，不能包含风险、待确认问题、内部排序、调试说明。
 - publicResume.experiences 必须保留原始简历里的全部工作经历条目（公司/岗位/时间）。可以压缩 bullet、调整重点和弱化不相关内容，但禁止删除过往工作经历，除非用户明确要求删除。
+- 禁止输出单独的“核心能力”章节。核心能力、技能和关键词只允许进入顶部关键词条，不允许在下方重复展示。
+- 顶部关键词最多 5 个，且必须控制在一行。优先选择最能代表职业定位和证据方向的短词，不要把完整句子放进关键词。
+- publicResume.skills 只作为顶部关键词候选；不要把 publicResume.skills 写成简历 bullet，也不要复制到“个人简介”里造成重复。
 - 如果某个 claim 还出现在 questions 或 pendingQuestions 中，publicResume 和 bullets 里不能把它写成事实；必须降级为更保守的表述，或暂时不写。
 - 每条 bullet 尽量采用“有意义的结果/变化 -> 关键动作 -> 能力证明”的顺序。
 - 指标必须可信。没有结果指标时写过程指标、质量指标或复杂度证据；仍不足时宁可弱化，也不要编数字。
@@ -418,14 +421,14 @@ ${questionSchemaInstruction}
   "claimDrafts": [{"draft":"准备写进简历的句子","risk":"风险或证据缺口","question":"如果必须确认，问一个会改变这条 bullet 的问题","fallbackIfUnknown":"用户答不上来时的保守写法"}],
   "keywordOrder": ["简历中可以展示的关键词，按重要性排序"],
   "projectOrder": ["内部使用的项目优先级，不要把“项目排序”作为简历标题输出"],
-  "bullets": [{"section":"个人简介|工作经历|项目经历|核心能力|个人作品|教育经历","text":"正式简历 bullet。只写可展示内容，不写内部风险提示","evidence":"对应证据","risk":"内部风险提示，仅给系统，不进入 HTML"}],
+  "bullets": [{"section":"个人简介|工作经历|项目经历|个人作品|教育经历","text":"正式简历 bullet。只写可展示内容，不写内部风险提示。不要使用核心能力 section","evidence":"对应证据","risk":"内部风险提示，仅给系统，不进入 HTML"}],
   "publicResume": {
     "header": {"name":"候选人姓名，如无法确定可为空","contacts":["邮箱/手机/GitHub/作品集，只放可展示内容"]},
     "headline": "正式简历顶部职业定位",
     "summary": ["个人简介 bullet，只放可展示事实"],
     "experiences": [{"title":"公司/岗位/项目组","period":"时间，可为空","bullets":["工作经历 bullet"]}],
     "projects": [{"title":"项目名","bullets":["项目经历 bullet"]}],
-    "skills": ["核心能力关键词或能力 bullet"],
+    "skills": ["顶部关键词候选，最多 5 个短词；不会作为单独章节渲染"],
     "works": [{"title":"作品名","description":"个人作品说明"}],
     "education": ["教育经历"]
   },

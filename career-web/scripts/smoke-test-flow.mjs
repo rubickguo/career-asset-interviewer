@@ -172,12 +172,12 @@ async function main() {
   assert.match(rendererSource, /headline/);
   assert.match(rendererSource, /isKeywordLikeText/);
   assert.match(rendererSource, /summaryItemsFromPublicResume/);
-  assert.match(rendererSource, /renderTagGrid/);
-  assert.match(rendererSource, /tag-grid/);
+  assertNotIncludes(rendererSource, ["renderTagGrid", "tag-grid"], "renderer source");
   assert.match(rendererSource, /extractOriginalWorkEntries/);
   assert.match(rendererSource, /sectionLines\.push\(\.\.\.lines\.filter/);
   assert.match(rendererSource, /mergeWorkEntries/);
-  assert.match(rendererSource, /renderSectionTitle\("核心能力"\)/);
+  assertNotIncludes(rendererSource, ['renderSectionTitle("核心能力")'], "renderer source");
+  assert.match(rendererSource, /topKeywordItems/);
 
   const workflowSource = await fs.readFile(path.join(rootDir, "server/workflow.js"), "utf8");
   assert.match(workflowSource, /先理解人，再处理简历/);
@@ -187,7 +187,9 @@ async function main() {
   assert.match(workflowSource, /JD 是附加流程，不是主流程/);
   assert.match(workflowSource, /个人网站不是简历网页版/);
   assert.match(workflowSource, /正式投递简历可预览内容/);
-  assert.match(workflowSource, /个人简介\\|工作经历\\|项目经历\\|核心能力\\|个人作品\\|教育经历/);
+  assert.match(workflowSource, /禁止输出单独的“核心能力”章节/);
+  assert.match(workflowSource, /顶部关键词最多 5 个，且必须控制在一行/);
+  assert.match(workflowSource, /个人简介\\|工作经历\\|项目经历\\|个人作品\\|教育经历/);
   assert.match(workflowSource, /禁止删除过往工作经历/);
   assert.match(workflowSource, /采访 -> 确认 -> 总结判断/);
   assert.match(workflowSource, /第一轮最多 3 题，第二轮最多 4 题，第三轮最多 2 题/);
@@ -215,6 +217,7 @@ async function main() {
   assert.match(workflowSource, /extractBalancedObject/);
   assert.match(workflowSource, /模型返回的 JSON 不完整/);
   assert.match(workflowSource, /publicResume/);
+  assert.match(workflowSource, /publicResume\.skills 只作为顶部关键词候选/);
   assertNotIncludes(workflowSource, ["你是一个客观、知性的职业发展分析助手"], "workflow prompt");
 
   const serverSource = await fs.readFile(path.join(rootDir, "server/index.js"), "utf8");
@@ -672,11 +675,13 @@ async function main() {
   assert.match(resumeHtml.text, /class="page"/);
   assert.match(resumeHtml.text, /class="header-top"/);
   assert.match(resumeHtml.text, /class="headline"/);
-  assert.match(resumeHtml.text, /class="tag-grid"/);
+  assert.match(resumeHtml.text, /class="chips"/);
   assert.match(resumeHtml.text, /个人简介/);
   assert.match(resumeHtml.text, /重点项目/);
   assert.match(resumeHtml.text, /个人作品/);
   assert.match(resumeHtml.text, /教育经历/);
+  assertNotIncludes(resumeHtml.text, ["核心能力"], "resume HTML");
+  assert.ok((resumeHtml.text.match(/class="chip"/g) || []).length <= 5, "top keyword chips should not exceed one line");
   assert.match(resumeHtml.text, /匿名公司/);
   assert.match(resumeHtml.text, /过往公司/);
   assertNotIncludes(resumeHtml.text, ["项目排序", "待确认问题", "版式注意", "项目证据补强", "风险：", "layoutNotes", "pendingQuestions"], "resume HTML");
