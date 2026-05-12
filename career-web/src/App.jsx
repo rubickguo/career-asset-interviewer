@@ -211,7 +211,7 @@ async function api(path, options = {}) {
 
 async function authApi(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: { "Content-Type": "application/json", "X-Career-Session-Id": getSessionId(), ...(options.headers || {}) },
     credentials: "include",
     ...options
   });
@@ -2149,10 +2149,10 @@ function App() {
         body: JSON.stringify({ phone, code })
       });
       await loadAuth();
-      await loadState();
+      const nextState = await loadState();
       setPhoneCode("");
       setStatus("");
-      goTo("upload");
+      goPath(nextRouteFromState(nextState));
     } catch (error) {
       setStatus(error.message);
     } finally {

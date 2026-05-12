@@ -165,6 +165,8 @@ async function main() {
   assert.match(appSource, /waiting-error-panel/);
   assert.match(appSource, /LoginPage/);
   assert.match(appSource, /authApi/);
+  assert.match(appSource, /"X-Career-Session-Id": getSessionId\(\)/);
+  assert.match(appSource, /goPath\(nextRouteFromState\(nextState\)\)/);
   assert.match(appSource, /手机号登录/);
   assert.match(appSource, /获取验证码/);
   assert.match(appSource, /auth\/phone\/send-code/);
@@ -238,6 +240,7 @@ async function main() {
   assert.match(serverSource, /sendAliyunSmsCode/);
   assert.match(serverSource, /PHONE_LOGIN_ENABLED/);
   assert.match(serverSource, /buildSessionContext\(sessionId, authSession\)/);
+  assert.match(serverSource, /migrateLocalSessionToAuthWorkspace/);
   assert.match(serverSource, /AUTH_REQUIRE_LOGIN/);
   assert.match(serverSource, /buildInterviewState/);
   assert.match(serverSource, /resumeStrategyHasBlockingGaps\(result, intake/);
@@ -341,6 +344,52 @@ async function main() {
 
   await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
   await writeText(path.join(workspaceDir, "uploads/resume-extracted.txt"), resumeTextFixture);
+  await writeJson(path.join(workspaceDir, "uploads/resume-structure.json"), parsedStructure);
+
+  if (auth.data.auth.phoneLoginEnabled && auth.data.auth.smsDevLoginEnabled) {
+    const loginAfterUploadJar = {};
+    const loginAfterUploadPhone = `139${String(Date.now()).slice(-8)}`;
+    const codeResponse = await requestWithCookie("/api/auth/phone/send-code", loginAfterUploadJar, {
+      method: "POST",
+      body: JSON.stringify({ phone: loginAfterUploadPhone })
+    });
+    await requestWithCookie("/api/auth/phone/login", loginAfterUploadJar, {
+      method: "POST",
+      body: JSON.stringify({ phone: loginAfterUploadPhone, code: codeResponse.data.devCode || process.env.SMS_DEV_CODE || "123456" })
+    });
+    const migratedState = await requestWithCookie("/api/state", loginAfterUploadJar);
+    assert.equal(migratedState.data.user.mode, "authenticated");
+    assert.notEqual(migratedState.data.workspaceDir, workspaceDir);
+    assert.equal(migratedState.data.resumeMeta?.originalName, resumeMetaFixture.originalName, "login after upload should keep existing resume");
+    assert.equal(migratedState.data.resumeStructure?.workExperiences?.length, 3, "login after upload should keep parsed work history");
+  }
+  if (auth.data.auth.devLoginEnabled) {
+    const loginAfterUploadJar = {};
+    const devLoginName = `smoke-${Date.now()}`;
+    await requestWithCookie("/api/auth/dev-login", loginAfterUploadJar, {
+      method: "POST",
+      body: JSON.stringify({ name: devLoginName })
+    });
+    const migratedState = await requestWithCookie("/api/state", loginAfterUploadJar);
+    assert.equal(migratedState.data.user.mode, "authenticated");
+    assert.notEqual(migratedState.data.workspaceDir, workspaceDir);
+    assert.equal(migratedState.data.resumeMeta?.originalName, resumeMetaFixture.originalName, "login after upload should keep existing resume");
+    assert.equal(migratedState.data.resumeStructure?.workExperiences?.length, 3, "login after upload should keep parsed work history");
+  }
+  if (auth.data.auth.devLoginEnabled) {
+    const existingAuthJar = {};
+    const devLoginName = `smoke-existing-${Date.now()}`;
+    await requestWithCookie("/api/auth/dev-login", existingAuthJar, {
+      method: "POST",
+      body: JSON.stringify({ name: devLoginName })
+    });
+    await writeJson(path.join(workspaceDir, "uploads/resume-meta.json"), resumeMetaFixture);
+    await writeText(path.join(workspaceDir, "uploads/resume-extracted.txt"), resumeTextFixture);
+    await writeJson(path.join(workspaceDir, "uploads/resume-structure.json"), parsedStructure);
+    const migratedState = await requestWithCookie("/api/state", existingAuthJar);
+    assert.equal(migratedState.data.resumeMeta?.originalName, resumeMetaFixture.originalName, "existing login should lazily recover local resume");
+    assert.equal(migratedState.data.resumeStructure?.workExperiences?.length, 3, "existing login should lazily recover parsed work history");
+  }
 
   const resetResult = await request("/api/reset", { method: "POST", body: "{}" });
   assert.equal(resetResult.data.resumeMeta, null, "reset should clear uploaded resume metadata");

@@ -255,6 +255,31 @@ async function deleteAuthSession(req) {
   await writeAuthJson("sessions.json", sessions);
 }
 
+async function hasUploadedResume(workspaceDir) {
+  try {
+    await fs.access(path.join(workspaceDir, "uploads", "resume-meta.json"));
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function migrateLocalSessionToAuthWorkspace(req, authSession) {
+  const sourceSessionId = normalizeSessionId(req.get("X-Career-Session-Id") || req.query.session);
+  if (!sourceSessionId || sourceSessionId === "anonymous-session") return false;
+  const sourceContext = buildSessionContext(sourceSessionId, null);
+  const targetContext = buildSessionContext(sourceSessionId, authSession);
+  if (sourceContext.workspaceDir === targetContext.workspaceDir) return false;
+  const sourceHasResume = await hasUploadedResume(sourceContext.workspaceDir);
+  if (!sourceHasResume) return false;
+  const targetHasResume = await hasUploadedResume(targetContext.workspaceDir);
+  if (targetHasResume) return false;
+  await fs.mkdir(path.dirname(targetContext.workspaceDir), { recursive: true });
+  await fs.cp(sourceContext.workspaceDir, targetContext.workspaceDir, { recursive: true, force: true });
+  return true;
+}
+
 function publicReturnPath(value = "") {
   const raw = String(value || "/").trim() || "/";
   if (/^https?:\/\//i.test(raw)) {
@@ -2051,6 +2076,9 @@ async function sessionMiddleware(req, res, next) {
       res.status(401).json({ ok: false, error: "请先登录后再继续。", authRequired: true });
       return;
     }
+    if (authSession) {
+      await migrateLocalSessionToAuthWorkspace(req, authSession);
+    }
     const sessionId = normalizeSessionId(req.get("X-Career-Session-Id") || req.query.session);
     const context = buildSessionContext(sessionId, authSession);
     res.setHeader("X-Career-Session-Id", context.sessionId);
@@ -2190,9 +2218,11 @@ app.post("/api/auth/phone/login", async (req, res, next) => {
       maskedPhone,
       nickname: maskedPhone
     });
+    const migrated = await migrateLocalSessionToAuthWorkspace(req, authSession);
     setAuthCookie(res, authSession.id);
     res.json({
       ok: true,
+      migrated,
       user: {
         id: hashStableId(key, "phone"),
         nickname: maskedPhone,
@@ -2281,6 +2311,7 @@ app.get("/api/auth/wechat/callback", async (req, res, next) => {
     }
 
     const authSession = await createAuthSession(profile);
+    await migrateLocalSessionToAuthWorkspace(req, authSession);
     setAuthCookie(res, authSession.id);
     res.redirect(publicReturnPath(savedState.returnTo || "/"));
   } catch (error) {
@@ -2299,8 +2330,9 @@ app.post("/api/auth/dev-login", async (req, res, next) => {
       nickname: name,
       avatar: ""
     });
+    const migrated = await migrateLocalSessionToAuthWorkspace(req, authSession);
     setAuthCookie(res, authSession.id);
-    res.json({ ok: true, user: { id: hashStableId(authSession.unionid, "dev"), nickname: authSession.nickname, provider: "dev" } });
+    res.json({ ok: true, migrated, user: { id: hashStableId(authSession.unionid, "dev"), nickname: authSession.nickname, provider: "dev" } });
   } catch (error) {
     next(error);
   }
