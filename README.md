@@ -4,9 +4,19 @@
 
 [旧版单体 skill 中文说明](LEGACY_README.zh-CN.md)
 
-Career Skills Pack is a set of focused Codex skills for career direction, JD fit, resume story building, and personal site creation.
+Career Skills Pack turns messy career history into reusable career assets: direction clarity, positioning keywords, project evidence, JD strategy, resume stories, and personal-site material.
 
-The previous single `career-asset-interviewer` skill has been split because the original scope was too broad. Each skill now owns one workflow and shares a common career asset protocol.
+It is designed for people whose experience cannot be captured by a generic resume template: career changers, product and AI builders, operators with complex project histories, and candidates who need credible evidence rather than inflated wording.
+
+The pack is split into focused Codex skills for career direction, JD fit, resume story building, and personal site creation. Each skill owns one workflow and shares a common career asset protocol, so the output can be reused across resumes, interviews, outreach, and portfolio pages.
+
+## What You Get
+
+- A structured interview flow that clarifies what the user is actually good at and willing to pursue.
+- A durable `career-assets/` knowledge base instead of one-off resume copy.
+- Evidence-first project stories with role, action, metrics, confidence, and market value separated.
+- JD analysis that explains fit and gaps without fake numeric scores.
+- Personal-site guidance that adapts to the user's professional identity instead of applying one generic layout.
 
 ## Design Philosophy
 
