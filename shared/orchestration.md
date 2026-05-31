@@ -19,6 +19,24 @@ These two skills are the default path. They create the user understanding, posit
 
 `jd-fit-strategist` and `personal-site-builder` are optional add-ons. They should not replace the main flow and should not run before the user's profile, direction, and keywords are sufficiently understood.
 
+## Readiness Gate
+
+Before handing work from one skill to another, run or mentally apply the same checks as:
+
+```bash
+node scripts/check-career-assets.mjs ./career-assets
+```
+
+Use `--strict-sections` for release or handoff QA when schema drift should block downstream work.
+
+Minimum handoff rules:
+
+- Direction work is ready for resume writing only when `profile.md`, `directions.md`, and `keywords.md` exist and do not contradict each other.
+- Resume writing is ready only when at least one priority project in `projects.md` has role, action, evidence, metric confidence, and review questions filled enough to avoid invented claims.
+- JD fit is ready only when the target direction and keywords are known; a JD alone is not enough.
+- Personal-site work is ready only when `website-brief.md` has audience, positioning, product identity, information architecture, and project display rules.
+- `待确认` is allowed in working assets, but final public-facing copy must not contain unresolved `待确认` markers.
+
 ## A. User Does Not Know Direction
 
 ```text

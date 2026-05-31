@@ -223,8 +223,11 @@ Useful scripts:
 
 ```bash
 node scripts/check-career-assets.mjs ./career-assets
+node scripts/check-career-assets.mjs ./career-assets --strict-sections
 node scripts/check-resume-html.mjs ./exports/resume.html
 node scripts/render-resume-pdf.mjs ./exports/resume.html ./exports/resume.pdf
 ```
+
+`check-career-assets.mjs` is a handoff gate, not only a file-existence check. It reports missing files, empty files, schema section drift, and unresolved `待确认`/`TODO` markers. By default section drift is a warning so work-in-progress assets remain usable; add `--strict-sections` before release or when handing assets to another skill.
 
 See `tests/evaluation_matrix.md` for lightweight fixture-based evaluation.
