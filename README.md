@@ -1,22 +1,50 @@
-# Career Skills Pack
+# HiJob / 嗨找吧 (Career Asset Interviewer & Management System)
 
-[中文说明](README.skill-pack.zh-CN.md)
+[中文说明](README.skill-pack.zh-CN.md) | [旧版单体 skill 中文说明](LEGACY_README.zh-CN.md)
 
-[旧版单体 skill 中文说明](LEGACY_README.zh-CN.md)
+HiJob is a fullstack career asset management system and tool suite that transforms messy, unstructured career histories into reusable, high-confidence career assets. It features a complete **interactive web application** (React + Express) and a **local Node.js CLI tool suite** alongside its core AI planning and interview engines.
 
-Career Skills Pack turns messy career history into reusable career assets: direction clarity, positioning keywords, project evidence, JD strategy, resume stories, and personal-site material.
+It is designed for professionals with complex, non-linear, or tech-intensive backgrounds (career changers, AI builders, product owners, and senior builders) who need to construct bulletproof, evidence-first career materials.
 
-It is designed for people whose experience cannot be captured by a generic resume template: career changers, product and AI builders, operators with complex project histories, and candidates who need credible evidence rather than inflated wording.
+## Quick Start (Interactive Web Dashboard)
 
-The pack is split into focused Codex skills for career direction, JD fit, resume story building, and personal site creation. Each skill owns one workflow and shares a common career asset protocol, so the output can be reused across resumes, interviews, outreach, and portfolio pages.
+Launch the full interactive local web dashboard to upload resumes (PDF/DOCX), run deep-dive interviews, analyze job descriptions, and render optimized PDF resumes:
+
+```bash
+# Install dependencies for both web app and CLI tools
+npm run install:all
+
+# Run the interactive development server (React frontend + Express backend)
+npm run dev
+```
+
+- **Frontend Dashboard:** [http://127.0.0.1:5173](http://127.0.0.1:5173)
+- **Local API Service:** [http://127.0.0.1:5174](http://127.0.0.1:5174)
+
+## Quick Start (Local CLI Tools)
+
+Initialize, check, and compile your career assets via local terminal utilities:
+
+```bash
+# Initialize a new local career asset profile
+node scripts/init-career-assets.mjs ./career-assets
+
+# Validate schema completeness and check for unresolved TODO markers
+npm run test:cli
+
+# Export career assets to a Kami-compatible downstream resume adapter brief
+node scripts/export-kami-resume.mjs ./career-assets --out ./exports/kami-adapter
+```
 
 ## What You Get
 
-- A structured interview flow that clarifies what the user is actually good at and willing to pursue.
+- **HiJob Interactive Web App**: A local React + Vite dashboard and Express API for resume parsing (PDF/DOCX), interactive AI-driven interviewing, and profile building.
+- A structured interview engine that clarifies what the user is actually good at and willing to pursue.
 - A durable `career-assets/` knowledge base instead of one-off resume copy.
 - Evidence-first project stories with role, action, metrics, confidence, and market value separated.
 - JD analysis that explains fit and gaps without fake numeric scores.
 - Personal-site guidance that adapts to the user's professional identity instead of applying one generic layout.
+- A lightweight [Kami integration](docs/integrations/kami.md) that exports `career-assets/` into a resume adapter brief for downstream HTML/PDF document delivery.
 
 ## Design Philosophy
 
@@ -217,6 +245,18 @@ To initialize a local career asset folder, use:
 
 ```bash
 node scripts/init-career-assets.mjs ./career-assets
+```
+
+To export a Kami-compatible resume adapter payload:
+
+```bash
+node scripts/export-kami-resume.mjs ./career-assets --out ./exports/kami-adapter
+```
+
+For a sample output:
+
+```bash
+node scripts/export-kami-resume.mjs ./career-assets.sample --out ./examples/kami-adapter
 ```
 
 Useful scripts:

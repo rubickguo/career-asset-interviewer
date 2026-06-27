@@ -1,0 +1,17 @@
+{
+  "name": "career-asset-interviewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "career-web"
+  ],
+  "scripts": {
+    "install:all": "npm install --workspaces --include-workspace-root",
+    "dev": "npm run dev --workspace=hijob",
+    "build": "npm run build --workspace=hijob",
+    "start": "npm run start --workspace=hijob",
+    "test:smoke": "npm run test:smoke --workspace=hijob",
+    "test:cli": "node scripts/check-career-assets.mjs ./career-assets.sample"
+  }
+}

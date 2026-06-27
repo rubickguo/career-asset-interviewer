@@ -1,0 +1,148 @@
+{
+  "protocol": {
+    "source": "career-asset-interviewer",
+    "target": "kami.resume",
+    "version": "0.1.0",
+    "generatedAt": "2026-06-17T18:38:39.051Z"
+  },
+  "source": {
+    "assetsDir": "/Users/rubick/Documents/生活/github-audit-nonfork-2026-05-16/career-asset-interviewer/career-assets.sample",
+    "files": [
+      "directions.md",
+      "keywords.md",
+      "profile.md",
+      "projects.md",
+      "resume-stories.md",
+      "skills-evidence.md",
+      "website-brief.md"
+    ]
+  },
+  "candidate": {
+    "name": "",
+    "alias": "",
+    "targetRole": "AI Product / Workflow Product",
+    "location": "",
+    "contact": {
+      "email": "",
+      "phone": "",
+      "github": "",
+      "website": "",
+      "x": ""
+    }
+  },
+  "positioning": {
+    "currentGoal": "希望在 2-3 个月内找到更匹配的互联网产品/运营/技术建设类岗位。",
+    "currentTrack": "互联网产品/运营复合背景。",
+    "continueOrChangeHypothesis": "默认优先判断是否延续当前职业轨道，通过换业务、换团队、换叙事解决问题；不预设转行。",
+    "targetDirections": [
+      {
+        "name": "AI Product / Workflow Product",
+        "type": "growth",
+        "why": "结合产品判断、工具使用和流程改造。",
+        "evidence": "待确认",
+        "gaps": "真实用户、采用率、效果指标。",
+        "risks": "不能只写“会用 AI”。"
+      },
+      {
+        "name": "Content / Community / Creator Ecosystem",
+        "type": "growth",
+        "why": "可以承接内容判断、用户理解和机制设计。",
+        "evidence": "待确认",
+        "gaps": "业务结果指标和可迁移表达。",
+        "risks": "被误读成纯社区执行。"
+      }
+    ],
+    "keywords": [
+      {
+        "keyword": "AI workflow",
+        "role": "differentiator",
+        "priority": "P1",
+        "evidenceStrength": "weak",
+        "supportingProjects": "待确认",
+        "missingProof": "采用率/效率/质量指标",
+        "decision": "experiment",
+        "status": "待确认"
+      },
+      {
+        "keyword": "Content ecosystem",
+        "role": "primary",
+        "priority": "P0",
+        "evidenceStrength": "medium",
+        "supportingProjects": "待确认",
+        "missingProof": "业务结果",
+        "decision": "likely",
+        "status": "待确认"
+      }
+    ]
+  },
+  "resume": {
+    "summary": "互联网产品/运营复合背景。 希望在 2-3 个月内找到更匹配的互联网产品/运营/技术建设类岗位。 Content ecosystem 结合产品判断、工具使用和流程改造。",
+    "metrics": [],
+    "projects": [
+      {
+        "name": "Example Project",
+        "type": "product / operations / tool / community",
+        "roleTag": "",
+        "resumePriority": "P1",
+        "portfolioPriority": "P1",
+        "role": "",
+        "actions": "",
+        "impact": "",
+        "evidenceConfidence": "待确认",
+        "publicDisplay": "needs sanitization",
+        "risks": "待确认"
+      }
+    ],
+    "skills": [
+      {
+        "name": "Cross-Domain Learning",
+        "evidenceStrength": "weak",
+        "supportingProjects": "待确认",
+        "bestProof": "",
+        "resumeWording": "",
+        "missingDetails": ""
+      }
+    ],
+    "storyBlocks": {
+      "resumeStrategy": "",
+      "resumeBullets": "",
+      "layoutNotes": ""
+    }
+  },
+  "boundaries": {
+    "publicPrivate": [
+      {
+        "project": "Example Project",
+        "publicDisplay": "needs sanitization",
+        "sensitivityRisks": "待确认",
+        "metricConfidence": "待确认"
+      }
+    ],
+    "riskPoints": "",
+    "pendingConfirmations": "",
+    "warnings": [
+      "Keyword \"AI workflow\" has weak evidence; keep it out of high-emphasis Kami slots unless confirmed.",
+      "Project \"Example Project\" requires public-display review before portfolio output.",
+      "Project \"Example Project\" metric confidence is \"待确认\"; downgrade or confirm impact wording."
+    ]
+  },
+  "kamiTemplateHints": {
+    "recommendedTemplate": "resume.html",
+    "adapterMode": "agent_filled_template",
+    "notes": [
+      "Use Kami as the presentation layer, not the career-understanding layer.",
+      "Do not promote weak-evidence keywords into the resume header.",
+      "Keep public/private boundaries outside final resume copy unless sanitized.",
+      "If a project has low metric confidence, downgrade the impact line or ask for confirmation."
+    ],
+    "fieldMapping": {
+      "{{姓名}}": "candidate.name",
+      "{{岗位定位}}": "candidate.targetRole",
+      "{{摘要}}": "resume.summary",
+      "{{关键词}}": "positioning.keywords[].keyword",
+      "metrics": "resume.metrics",
+      "project role/action/impact rows": "resume.projects[].role/actions/impact",
+      "risk review": "boundaries.warnings and boundaries.publicPrivate"
+    }
+  }
+}
