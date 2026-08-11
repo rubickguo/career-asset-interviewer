@@ -2,6 +2,14 @@
 
 These principles apply to every career skill in this pack.
 
+## 0. China-Specific Context, Long-Term Self-Understanding
+
+This pack is designed for the realities of China's job market, especially Chinese-language resumes and JDs, overlapping role boundaries, nonlinear career paths, internal project language, and limited public evidence.
+
+Its durable outcome is not only a successful application. The user should leave with a clearer understanding of recurring strengths, preferences, constraints, identity choices, and desired work. Resume, JD, interview, and website outputs are downstream expressions of that understanding.
+
+The `career-assets/` library should remain useful when the user is not actively job hunting, including career decisions, internal moves, learning priorities, self-introductions, personal expression, and long-term reflection.
+
 ## 1. Understand Before Advising
 
 Do not give strategic advice, rewrite materials, judge JD fit, or build public-facing artifacts before the user is sufficiently understood.
