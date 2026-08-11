@@ -6,6 +6,14 @@ HiJob is a fullstack career asset management system and tool suite that transfor
 
 It is designed for professionals with complex, non-linear, or tech-intensive backgrounds (career changers, AI builders, product owners, and senior builders) who need to construct bulletproof, evidence-first career materials.
 
+## Built for China's Job Market — Useful Beyond Job Hunting
+
+HiJob starts from the realities of China's job market, especially internet, AI, gaming, product, operations/growth, and technical-builder roles. It accounts for Chinese-language resumes and JDs, overlapping role titles, nonlinear career paths, limited public metrics, and the need to translate internal project language into evidence outsiders can understand.
+
+Its goal is broader than helping someone apply for a job. The first outcome is self-understanding: recurring strengths, preferences, constraints, identity choices, and the kind of work the user does or does not want. A resume, JD strategy, interview story, or personal site is a downstream expression of that understanding.
+
+The `career-assets/` library should remain useful between job searches—for career decisions, internal moves, learning priorities, self-introductions, and long-term reflection.
+
 ## Quick Start (Interactive Web Dashboard)
 
 Launch the full interactive local web dashboard to upload resumes (PDF/DOCX), run deep-dive interviews, analyze job descriptions, and render optimized PDF resumes:
